@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+dist/
+build/
+
+# uv
+uv.lock
+
+# Dora code-intelligence index (machine-local, ~2–5 MB)
+.dora/
+
+# Agent context (machine-local, not for version control)
+AGENTS.md
+
+# Editor
+.vscode/
+.idea/
+
+# Test artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+
+# dora code context index
+.dora/
