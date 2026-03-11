@@ -336,7 +336,7 @@ typing-inspection). No async runtime, no C extensions required.
 
 ### Python version
 
-3.12+ (match gogo's NixOS Python).
+3.12+ (NixOS Python on the target host).
 
 ### Packaging
 
@@ -552,26 +552,45 @@ host = "mail.example.com"
 port = 993
 ssl = true
 username = "user@example.com"
-# password from separate file or env var
+# password from explicit config, password file, env var, Himalaya, or Thunderbird
 
 [imap.pool]
 size = 3
 idle_timeout = 300  # seconds
+
+[imap.auth]
+provider = "auto"  # mailjail | env | password-file | himalaya | thunderbird | auto
+himalaya_config_path = "~/.config/himalaya/config.toml"
+himalaya_account = "myaccount"
+thunderbird_dir = "~/.thunderbird"
+# Optional explicit profile name if not using the default Thunderbird profile
+# thunderbird_profile = "abcd.default-release"
+# Helper command receives ${profile}, ${logins_json}, ${key4_db}, ${origin}, ${hostname},
+# ${encrypted_username}, ${encrypted_password} and must print the decrypted password.
+thunderbird_helper_cmd = '''python3 ~/.local/bin/mailjail-thunderbird-password \
+  --profile ${profile} --logins-json ${logins_json} --key4-db ${key4_db} \
+  --origin ${origin}'''
+# Optional hints to choose among multiple Thunderbird logins
+# thunderbird_hostname_hint = "mail.example.com"
+# thunderbird_username_hint = "user@example.com"
 
 [policy]
 # Override default allowed keywords (optional)
 # allowed_custom_keywords = ["needs-reply", "agent-triaged", "low-priority"]
 ```
 
-Credentials: password in `~/.config/mailjail/password` (mode 600, single line)
-or `MAILJAIL_IMAP_PASSWORD` environment variable (loaded from systemd
-EnvironmentFile).
+Credential resolution order:
+- `provider = "mailjail"` / `"auto"`: explicit `imap.password`, `MAILJAIL_IMAP_PASSWORD`, then `~/.config/mailjail/password`
+- `provider = "himalaya"` / `"auto"`: parse Himalaya config (`auth.raw` or `auth.cmd`)
+- `provider = "thunderbird"` / `"auto"`: discover Thunderbird profile/login metadata, then invoke the configured helper command to decrypt and print the password
+
+Thunderbird note: mailjail does **not** implement NSS decryption internally. Instead it provides a stable provider interface that discovers the right profile/login and calls a local helper script/tool, keeping NSS-specific logic outside the main service.
 
 ## 10. Deployment
 
 ### NixOS / Home Manager (your user)
 
-Add to `home-manager/home-agent-gogo.nix` (or a separate $USER service
+Add to your Home Manager config (or a separate $USER service
 config — depending on Home Manager setup for that user):
 
 ```nix
@@ -596,7 +615,7 @@ systemd.user.services.mailjail = {
 
 ### Port selection
 
-Port **8895** — free on gogo (existing: 8080-8082, 8334, 8880, 3141, 13456).
+Port **8895** — chosen to avoid conflicts with common development ports.
 Localhost-only, no Tailscale Serve needed (agent and service are on the same
 machine).
 
