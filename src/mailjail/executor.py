@@ -15,6 +15,7 @@ from .models.core import (
 from .models.email import handle_email_get, handle_email_query
 from .models.email_set import handle_email_set
 from .models.mailbox import handle_mailbox_get
+from .models.submission import handle_email_submission_set
 from .policy import (
     ALLOWED_METHODS,
     BLOCKED_METHODS,
@@ -151,6 +152,8 @@ class Executor:
                         call_id,
                     )
                 name, result = handle_email_set(args, self._pool, self._settings)
+            elif method == "EmailSubmission/set":
+                name, result = handle_email_submission_set(args)
             else:
                 # Should not reach here given the checks above
                 return make_error_invocation(

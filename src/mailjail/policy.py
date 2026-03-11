@@ -19,6 +19,9 @@ ALLOWED_METHODS: frozenset[str] = frozenset(
 RESTRICTED_METHODS: frozenset[str] = frozenset(
     {
         "Email/set",
+        # Intercepted: fakes success but retains the draft instead of sending.
+        # Response always includes mailjail:intercepted and mailjail:message.
+        "EmailSubmission/set",
     }
 )
 
@@ -26,7 +29,6 @@ RESTRICTED_METHODS: frozenset[str] = frozenset(
 BLOCKED_METHODS: frozenset[str] = frozenset(
     {
         "Email/copy",
-        "EmailSubmission/set",
         "EmailSubmission/get",
         "EmailSubmission/query",
         "EmailSubmission/changes",
