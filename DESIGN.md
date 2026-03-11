@@ -20,19 +20,19 @@ We need a **capability-restricted proxy** that:
 
 ```
 ┌─────────────────────┐            ┌───────────────────────────────────┐
-│  agent user (tyko)  │   HTTP     │  akaihola user                   │
+│  agent user (ai)    │   HTTP     │  owner ($USER)                   │
 │                     │───────────▶│  mailjail service                │
 │  • curl localhost:  │   :8895    │                                  │
 │    8895/jmap        │            │  • owns IMAP credentials         │
 │  • cannot read      │            │  • owns service code             │
-│    akaihola's files │            │  • only exposes safe operations  │
+│    owner's files    │            │  • only exposes safe operations  │
 │  • cannot modify    │            │  • runs as systemd user service  │
 │    service code     │            │                                  │
 └─────────────────────┘            └──────────┬────────────────────────┘
                                               │ IMAPS :993
                                               ▼
                                    ┌──────────────────────┐
-                                   │  mail.gandi.net      │
+                                   │  mail.example.com    │
                                    │  IMAP4rev1 over TLS  │
                                    └──────────────────────┘
 ```
@@ -41,8 +41,8 @@ We need a **capability-restricted proxy** that:
 
 | Boundary                  | Mechanism                                              |
 |---------------------------|--------------------------------------------------------|
-| Credential isolation      | Credentials in `~akaihola/.config/mailjail/` (mode 600)|
-| Code integrity            | Service code owned by akaihola, agent cannot write     |
+| Credential isolation      | Credentials in `~$USER/.config/mailjail/` (mode 600)   |
+| Code integrity            | Service code owned by $USER, agent cannot write        |
 | Operation restriction     | HTTP API only exposes safe JMAP methods                |
 | No outbound email         | No SMTP configured, no EmailSubmission endpoint        |
 | Localhost only            | Binds 127.0.0.1:8895, no Tailscale/external exposure  |
@@ -541,14 +541,14 @@ connections — one thread can always serve /healthz without waiting for IMAP.
 ## 9. Configuration
 
 ```toml
-# ~/.config/mailjail/config.toml (owned by akaihola, mode 600)
+# ~/.config/mailjail/config.toml (owned by $USER, mode 600)
 
 [server]
 host = "127.0.0.1"
 port = 8895
 
 [imap]
-host = "mail.gandi.net"
+host = "mail.example.com"
 port = 993
 ssl = true
 username = "user@example.com"
@@ -569,9 +569,9 @@ EnvironmentFile).
 
 ## 10. Deployment
 
-### NixOS / Home Manager (akaihola user)
+### NixOS / Home Manager (your user)
 
-Add to `home-manager/home-agent-gogo.nix` (or a separate akaihola service
+Add to `home-manager/home-agent-gogo.nix` (or a separate $USER service
 config — depending on Home Manager setup for that user):
 
 ```nix
@@ -659,8 +659,8 @@ Save a draft:
 
 - [ ] Config file parsing (TOML)
 - [ ] Credential management (password file + env var)
-- [ ] NixOS systemd service definition (akaihola user)
-- [ ] Probe Gandi IMAP for PERMANENTFLAGS / SORT / CONDSTORE support
+- [ ] NixOS systemd service definition (your user)
+- [ ] Probe IMAP server for PERMANENTFLAGS / SORT / CONDSTORE support
 - [ ] Agent skill file (SKILL.md with curl examples)
 - [ ] Smoke test: agent reads inbox via curl
 
@@ -684,11 +684,11 @@ Save a draft:
 
 ## 13. Open decisions
 
-- [ ] **Gandi PERMANENTFLAGS**: Do custom keywords work? Must probe before
+- [ ] **IMAP server PERMANENTFLAGS**: Do custom keywords work? Must probe before
   relying on them. Fallback: folder-based labeling.
 - [ ] **Email client keyword visibility**: Which client does the user use?
   Thunderbird shows IMAP keywords as tags. Apple Mail mostly ignores them.
-  Gandi webmail unknown.
+  Mail provider webmail behaviour unknown.
 - [ ] **Authentication on HTTP API**: Currently none (localhost-only).
   Could add a bearer token for defense-in-depth if desired.
 - [ ] **Result references**: Full RFC 8620 §3.7 support (JSON pointers into

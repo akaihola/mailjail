@@ -24,8 +24,8 @@
 
 - [x] Config file parsing (TOML via stdlib `tomllib`)
 - [x] Credential management (password file + env var)
-- [ ] NixOS systemd service definition (akaihola user, Home Manager)
-- [ ] Probe Gandi IMAP: PERMANENTFLAGS / SORT / CONDSTORE support
+- [ ] NixOS systemd service definition (your user, Home Manager)
+- [ ] Probe IMAP server: PERMANENTFLAGS / SORT / CONDSTORE support
 - [ ] Agent skill file (`~/.claude/skills/mailjail/SKILL.md` with curl examples)
 - [ ] Smoke test: agent reads inbox via curl
 

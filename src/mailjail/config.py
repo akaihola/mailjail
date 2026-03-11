@@ -14,7 +14,7 @@ DEFAULT_PASSWORD_PATH = Path.home() / ".config" / "mailjail" / "password"
 class Settings(BaseModel):
     server_host: str = "127.0.0.1"
     server_port: int = 8895
-    imap_host: str = "mail.gandi.net"
+    imap_host: str = "mail.example.com"
     imap_port: int = 993
     imap_ssl: bool = True
     imap_username: str

@@ -331,7 +331,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--origin", required=True,
-        help="Login origin, e.g. imap://mail.gandi.net",
+        help="Login origin, e.g. imap://mail.example.com",
     )
     parser.add_argument("--hostname", default=None, help="Optional host hint")
     parser.add_argument("--encrypted-username", default=None)
