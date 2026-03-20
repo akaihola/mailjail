@@ -44,3 +44,10 @@
 - [ ] Draft reply helper (auto-populate In-Reply-To, References, quoted text)
 - [ ] Thread view
 - [ ] HTML body → plain text for agent consumption
+
+## Phase 5 — Multi-account support
+
+- [ ] Update `/home/agent/prg/mailjail/DESIGN.md` with a multi-account architecture: config model, JMAP `accounts` exposure, account routing, pool lifecycle, and compatibility plan for existing single-account setups
+- [ ] Implement multi-account support so one `mailjail` server can proxy multiple different mail accounts through a single JMAP endpoint
+- [ ] Add tests covering multi-account session metadata and per-account routing for `Mailbox/get`, `Email/query`, and `Email/get`
+- [ ] Revisit the future agent skill design once the multi-account server contract is stable
