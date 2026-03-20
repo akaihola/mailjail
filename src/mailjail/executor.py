@@ -15,6 +15,7 @@ from .models.core import (
 from .models.email import handle_email_get, handle_email_query
 from .models.email_set import handle_email_set
 from .models.mailbox import handle_mailbox_get
+from .models.submission import handle_email_submission_set
 from .policy import (
     ALLOWED_METHODS,
     BLOCKED_METHODS,
@@ -78,8 +79,11 @@ def resolve_args(
     args: dict[str, Any],
     previous_responses: list[Invocation],
 ) -> dict[str, Any]:
-    """Walk args dict; for any key starting with '#', treat the value as a
-    result reference and replace the key (without '#') with the resolved value.
+    """Recursively walk args; for any key starting with '#', treat the value as
+    a result reference and replace the key (without '#') with the resolved value.
+
+    Recurses into nested dicts and lists so that result references inside
+    'create' objects (e.g. '#emailId' inside create.sub1) are resolved too.
     """
     result: dict[str, Any] = {}
     for key, value in args.items():
@@ -87,8 +91,17 @@ def resolve_args(
             resolved_key = key[1:]
             result[resolved_key] = resolve_result_ref(value, previous_responses)
         else:
-            result[key] = value
+            result[key] = _resolve_value(value, previous_responses)
     return result
+
+
+def _resolve_value(value: Any, previous_responses: list[Invocation]) -> Any:
+    """Recursively resolve result references inside nested dicts and lists."""
+    if isinstance(value, dict):
+        return resolve_args(value, previous_responses)
+    if isinstance(value, list):
+        return [_resolve_value(item, previous_responses) for item in value]
+    return value
 
 
 class Executor:
@@ -139,6 +152,8 @@ class Executor:
                         call_id,
                     )
                 name, result = handle_email_set(args, self._pool, self._settings)
+            elif method == "EmailSubmission/set":
+                name, result = handle_email_submission_set(args)
             else:
                 # Should not reach here given the checks above
                 return make_error_invocation(

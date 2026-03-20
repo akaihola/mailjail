@@ -19,7 +19,7 @@ DEFAULT_PASSWORD_PATH = Path.home() / ".config" / "mailjail" / "password"
 DEFAULT_HIMALAYA_CONFIG_PATH = Path.home() / ".config" / "himalaya" / "config.toml"
 DEFAULT_THUNDERBIRD_DIR = Path.home() / ".thunderbird"
 DEFAULT_THUNDERBIRD_HELPER_CMD = (
-    "python3 ~/.local/bin/mailjail-thunderbird-password "
+    "~/.local/bin/mailjail-thunderbird-password "
     "--profile ${profile} --origin ${origin}"
 )
 
