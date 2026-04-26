@@ -80,3 +80,15 @@ def test_jmap_error_type_values() -> None:
     assert JMAPErrorType.NOT_FOUND == "notFound"
     assert JMAPErrorType.TOO_LARGE == "tooLarge"
     assert JMAPErrorType.UNKNOWN_METHOD == "unknownMethod"
+    assert JMAPErrorType.ACCOUNT_NOT_FOUND == "accountNotFound"
+
+
+def test_make_error_invocation_account_not_found() -> None:
+    inv = make_error_invocation(
+        JMAPErrorType.ACCOUNT_NOT_FOUND, "no such account", "c2"
+    )
+    assert inv == (
+        "error",
+        {"type": "accountNotFound", "description": "no such account"},
+        "c2",
+    )

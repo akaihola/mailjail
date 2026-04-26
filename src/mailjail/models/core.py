@@ -15,6 +15,7 @@ class JMAPErrorType(StrEnum):
     NOT_FOUND = "notFound"
     TOO_LARGE = "tooLarge"
     UNKNOWN_METHOD = "unknownMethod"
+    ACCOUNT_NOT_FOUND = "accountNotFound"
 
 
 class JMAPRequest(BaseModel):
