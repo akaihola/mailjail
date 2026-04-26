@@ -628,9 +628,6 @@ provider = "thunderbird"
 thunderbird_dir = "~/.thunderbird"
 # Optional explicit profile name if not using the default Thunderbird profile
 # thunderbird_profile = "abcd.default-release"
-# Helper command receives ${profile}, ${logins_json}, ${key4_db}, ${origin}, ${hostname},
-# ${encrypted_username}, ${encrypted_password} and must print the decrypted password.
-thunderbird_helper_cmd = "python3 ~/.local/bin/mailjail-thunderbird-password --profile ${profile} --origin ${origin}"
 # Optional hints to choose among multiple Thunderbird logins
 # thunderbird_hostname_hint = "mail.personal.example"
 # thunderbird_username_hint = "me@personal.example"
@@ -650,13 +647,13 @@ Per-account credential resolution (runs independently for each
 `[accounts.<id>]`):
 - `provider = "mailjail"` / `"auto"`: explicit `password` in the section, or `~/.config/mailjail/password` (or `password_file` in `auth`)
 - `provider = "himalaya"` / `"auto"`: parse the configured Himalaya config (`auth.raw` or `auth.cmd`)
-- `provider = "thunderbird"` / `"auto"`: discover Thunderbird profile/login metadata, then invoke the configured helper command to decrypt and print the password
+- `provider = "thunderbird"` / `"auto"`: discover Thunderbird profile/login metadata and decrypt the password in-process via NSS. Requires the optional `cryptography` dependency — install with `pip install 'mailjail[thunderbird]'`.
 
 Legacy single-account configs (a top-level `[imap]` section without
 `[accounts.<id>]`) are rejected at startup with a clear error pointing at the
 new schema.
 
-Thunderbird note: mailjail does **not** implement NSS decryption internally. Instead it provides a stable provider interface that discovers the right profile/login and calls a local helper script/tool, keeping NSS-specific logic outside the main service.
+Thunderbird note: NSS decryption (the same scheme Firefox/Thunderbird use to protect `logins.json` with the master password) is implemented in-process in `mailjail.thunderbird`. The `cryptography` library is an *optional* extra so users on other providers (himalaya, password-file) don't pay the dependency cost. Earlier versions of mailjail shelled out to a separate `mailjail-thunderbird-password` helper script — that helper has been removed.
 
 ## 10. Deployment
 
