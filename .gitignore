@@ -26,3 +26,4 @@ htmlcov/
 
 # dora code context index
 .dora/
+.claude/
