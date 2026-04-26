@@ -238,6 +238,34 @@ thunderbird_helper_cmd = "python3 -c \\"print('secret-from-thunderbird')\\""
     assert settings.accounts["personal"].imap_password == "secret-from-thunderbird"
 
 
+def test_thunderbird_provider_uses_in_process_decryption(tmp_path: Path) -> None:
+    """load_settings() should decrypt Thunderbird credentials in-process,
+    without invoking any external helper command."""
+    from tests.test_thunderbird import synthetic_profile_factory  # see Task 4 step 2
+
+    profile_dir = synthetic_profile_factory(tmp_path)
+    thunderbird_dir = profile_dir.parent
+    profile_dir.rename(thunderbird_dir / "abcd.default-release")
+    (thunderbird_dir / "profiles.ini").write_text(PROFILES_INI)
+
+    config_path = tmp_path / "mailjail.toml"
+    config_path.write_text(
+        f'''
+primary_account = "personal"
+
+[accounts.personal]
+username = "user@example.com"
+
+[accounts.personal.auth]
+provider = "thunderbird"
+thunderbird_dir = "{thunderbird_dir}"
+'''
+    )
+
+    settings = load_settings(config_path)
+    assert settings.accounts["personal"].imap_password == "my-secret-imap-password"
+
+
 # --- Direct credential helper tests (unchanged) ---
 
 

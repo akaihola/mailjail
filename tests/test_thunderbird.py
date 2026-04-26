@@ -142,9 +142,8 @@ LOGIN_PASSWORD = "my-secret-imap-password"
 MASTER_PASSWORD = ""
 
 
-@pytest.fixture()
-def synthetic_profile(tmp_path: Path) -> Path:
-    """Create a synthetic Thunderbird profile with known encrypted values."""
+def synthetic_profile_factory(tmp_path: Path) -> Path:
+    """Build a synthetic Thunderbird profile (used by both test files)."""
     profile = tmp_path / "profile"
     profile.mkdir()
 
@@ -188,6 +187,12 @@ def synthetic_profile(tmp_path: Path) -> Path:
     }))
 
     return profile
+
+
+@pytest.fixture()
+def synthetic_profile(tmp_path: Path) -> Path:
+    """Create a synthetic Thunderbird profile with known encrypted values."""
+    return synthetic_profile_factory(tmp_path)
 
 
 # ---------------------------------------------------------------------------
