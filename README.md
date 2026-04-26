@@ -44,28 +44,39 @@ Configuration is TOML, located by default at
 JMAP clients see as their default.
 
 ```toml
-server_host = "127.0.0.1"
-server_port = 8895
+[server]
+host = "127.0.0.1"
+port = 8895
+
 primary_account = "personal"
 
 [accounts.personal]
-imap_host = "imap.fastmail.com"
-imap_port = 993
-imap_ssl = true
-imap_username = "me@example.com"
-imap_password_file = "~/.config/mailjail/personal.pass"
+host = "imap.fastmail.com"
+port = 993
+ssl = true
+username = "me@example.com"
 drafts_folder = "Drafts"
-pool_size = 3
+
+[accounts.personal.pool]
+size = 3
+
+[accounts.personal.auth]
+provider = "mailjail"
+password_file = "~/.config/mailjail/personal.pass"
 
 [accounts.work]
-imap_host = "outlook.office365.com"
-imap_port = 993
-imap_ssl = true
-imap_username = "me@work.example.com"
-credential_provider = "himalaya"
-credential_account = "work"
+host = "outlook.office365.com"
+port = 993
+ssl = true
+username = "me@work.example.com"
 drafts_folder = "Drafts"
-pool_size = 2
+
+[accounts.work.pool]
+size = 2
+
+[accounts.work.auth]
+provider = "himalaya"
+himalaya_account = "work"
 ```
 
 Per-account credentials can come from a password file, a himalaya keyring
