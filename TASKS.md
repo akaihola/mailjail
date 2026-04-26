@@ -284,3 +284,16 @@ Acceptance tests:
       the new config schema if it has already been deployed.
       (No prior deployment; `nix/home-manager-module.nix` ships the
       multi-account-aware unit.)
+
+## Phase 6 — Credential providers (backlog)
+
+- [x] Inline Thunderbird NSS decryption into `mailjail.thunderbird`; gate
+      `cryptography` behind the `thunderbird` extra; remove standalone helper
+      script (2026-04-26).
+- [ ] Support OAuth2 token extraction for Gmail. Thunderbird stores Gmail
+      credentials as OAuth2 refresh tokens (not IMAP passwords) under
+      `oauth://accounts.google.com` in `logins.json`. The existing Thunderbird
+      provider only handles password-style logins. Add an OAuth2 path that:
+      reads the refresh token, exchanges it for an access token via Google's
+      token endpoint, then uses XOAUTH2 SASL when authenticating to
+      `imap.gmail.com`. Out of scope for the 2026-04-26 inlining work.
