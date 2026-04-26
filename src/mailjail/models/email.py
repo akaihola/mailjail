@@ -10,7 +10,7 @@ from ..imap.fetch import (
     folder_uid_to_email_id,
     imap_message_to_jmap_email,
 )
-from ..imap.search import jmap_filter_to_imap
+from ..imap.search import jmap_filter_to_imap, jmap_sort_to_imap
 
 
 class EmailAddress(BaseModel):
@@ -74,6 +74,7 @@ def handle_email_query(
     """
     account_id = args["accountId"]
     filter_cond = args.get("filter", {})
+    sort_spec = args.get("sort") or []
     limit = args.get("limit", 256)
     position = args.get("position", 0)
 
@@ -81,14 +82,22 @@ def handle_email_query(
     folder = filter_cond.get("inMailbox", "INBOX")
     criterion = jmap_filter_to_imap(filter_cond)
 
+    server_sort: str | None = None
+    if sort_spec and pool.has_capability("SORT"):
+        server_sort = jmap_sort_to_imap(sort_spec)
+
     with pool.connection() as mb:
         mb.folder.set(folder)
-        uid_list = list(mb.uids(criterion))
+        if server_sort is not None:
+            uid_list = list(mb.uids(criterion, sort=server_sort))
+        else:
+            uid_list = list(mb.uids(criterion))
 
     total = len(uid_list)
 
-    # Apply sort (Phase 1: natural order, newest first by reversing UID list)
-    uid_list = list(reversed(uid_list))
+    if server_sort is None:
+        # Client-side fallback: natural UID order, newest first.
+        uid_list = list(reversed(uid_list))
 
     # Apply pagination
     sliced = uid_list[position : position + limit]

@@ -23,6 +23,41 @@ def folder_uid_to_email_id(folder: str, uid: str) -> str:
     return f"{folder}:{uid}"
 
 
+_TAG_RE = re.compile(r"<[^>]+>")
+_STYLE_OR_SCRIPT_RE = re.compile(
+    r"<(script|style)\b[^>]*>.*?</\1\s*>", re.IGNORECASE | re.DOTALL
+)
+_HTML_ENTITY_MAP = {
+    "&nbsp;": " ",
+    "&amp;": "&",
+    "&lt;": "<",
+    "&gt;": ">",
+    "&quot;": '"',
+    "&#39;": "'",
+    "&apos;": "'",
+}
+
+
+def html_to_text(html: str) -> str:
+    """Strip HTML tags / scripts / styles and decode common entities.
+
+    This is a best-effort conversion used for preview text and for
+    populating ``textBody`` when an email is HTML-only. It is intentionally
+    dependency-free; agents that need full fidelity can request ``htmlBody``
+    instead.
+    """
+    if not html:
+        return ""
+    cleaned = _STYLE_OR_SCRIPT_RE.sub("", html)
+    # Replace block-level breaks with newlines so paragraphs survive.
+    cleaned = re.sub(r"<\s*br\s*/?\s*>", "\n", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"</\s*p\s*>", "\n\n", cleaned, flags=re.IGNORECASE)
+    cleaned = _TAG_RE.sub("", cleaned)
+    for entity, replacement in _HTML_ENTITY_MAP.items():
+        cleaned = cleaned.replace(entity, replacement)
+    return cleaned
+
+
 def make_preview(text: str, max_chars: int = 256) -> str:
     """Return the first max_chars characters of text with whitespace collapsed."""
     collapsed = re.sub(r"\s+", " ", text).strip()
@@ -84,7 +119,7 @@ def imap_message_to_jmap_email(
         "sentAt": msg.date.isoformat() if msg.date else None,
         "receivedAt": msg.date.isoformat() if msg.date else None,
         "size": msg.size_rfc822,
-        "preview": make_preview(msg.text or msg.html or ""),
+        "preview": make_preview(msg.text or html_to_text(msg.html or "")),
         "hasAttachment": bool(msg.attachments),
         "headers": [
             {"name": k, "value": v} for k, vs in (msg.headers or {}).items() for v in vs
@@ -94,11 +129,16 @@ def imap_message_to_jmap_email(
         "bodyValues": {},
     }
 
-    # Build body parts
-    if msg.text:
+    # Build body parts. If the message is HTML-only, derive a plain-text
+    # rendering so agents that only request textBody still get readable
+    # content.
+    text = msg.text
+    if not text and msg.html:
+        text = html_to_text(msg.html)
+    if text:
         full["textBody"] = [{"partId": "1", "type": "text/plain"}]
         full["bodyValues"]["1"] = {
-            "value": msg.text,
+            "value": text,
             "isEncodingProblem": False,
             "isTruncated": False,
         }

@@ -32,6 +32,7 @@ class IMAPPool:
         self._password = password
         self._ssl = ssl
         self._pool: queue.Queue[MailBox] = queue.Queue(maxsize=size)
+        self._capabilities: frozenset[str] = frozenset()
         for _ in range(size):
             self._pool.put(self._make_connection())
 
@@ -43,7 +44,28 @@ class IMAPPool:
         """
         mb = MailBox(host=self._host, port=self._port)
         mb.login(self._username, self._password, initial_folder=None)
+        if not self._capabilities:
+            try:
+                caps = mb.client.capabilities  # imaplib exposes a tuple
+                self._capabilities = frozenset(c.upper() for c in caps)
+                logger.info(
+                    "IMAP server %s:%s capabilities: SORT=%s CONDSTORE=%s",
+                    self._host,
+                    self._port,
+                    "SORT" in self._capabilities,
+                    "CONDSTORE" in self._capabilities,
+                )
+            except Exception:
+                logger.debug("Could not read IMAP capabilities", exc_info=True)
         return mb
+
+    @property
+    def capabilities(self) -> frozenset[str]:
+        """Cached IMAP CAPABILITY set (uppercased). Empty if probe failed."""
+        return self._capabilities
+
+    def has_capability(self, name: str) -> bool:
+        return name.upper() in self._capabilities
 
     @contextmanager
     def connection(self) -> Generator[MailBox, None, None]:

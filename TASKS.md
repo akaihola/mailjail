@@ -25,25 +25,25 @@
 - [x] Config file parsing (TOML via stdlib `tomllib`)
 - [x] Credential management (password file + env var)
 - [ ] NixOS systemd service definition (your user, Home Manager)
-- [ ] Probe IMAP server: PERMANENTFLAGS / SORT / CONDSTORE support
+- [x] Probe IMAP server: PERMANENTFLAGS / SORT / CONDSTORE support
 - [ ] Agent skill file (`~/.claude/skills/mailjail/SKILL.md` with curl examples)
 - [ ] Smoke test: agent reads inbox via curl
 
 ## Phase 3 — Robustness
 
-- [ ] IMAP connection keepalive and reconnection
+- [x] IMAP connection keepalive and reconnection
 - [ ] `Email/changes` (if CONDSTORE available)
 - [x] Compound filters (AND/OR/NOT)
-- [ ] SORT support (if server advertises it)
+- [x] SORT support (if server advertises it)
 - [ ] Attachment blob download endpoint
-- [ ] Structured logging
+- [x] Structured logging
 
 ## Phase 4 — Polish
 
 - [ ] README with setup instructions
 - [ ] Draft reply helper (auto-populate In-Reply-To, References, quoted text)
 - [ ] Thread view
-- [ ] HTML body → plain text for agent consumption
+- [x] HTML body → plain text for agent consumption
 
 ## Phase 5 — Multi-account support
 
