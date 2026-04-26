@@ -94,16 +94,26 @@ with the subset of methods listed below.
     "urn:ietf:params:jmap:mail": {}
   },
   "accounts": {
-    "default": {
-      "name": "user@example.com",
+    "work": {
+      "name": "user@work.example",
       "isPersonal": true,
       "accountCapabilities": {
-        "urn:ietf:params:jmap:mail": {}
+        "urn:ietf:params:jmap:mail": {},
+        "urn:ietf:params:jmap:submission": {}
+      }
+    },
+    "personal": {
+      "name": "me@personal.example",
+      "isPersonal": true,
+      "accountCapabilities": {
+        "urn:ietf:params:jmap:mail": {},
+        "urn:ietf:params:jmap:submission": {}
       }
     }
   },
   "primaryAccounts": {
-    "urn:ietf:params:jmap:mail": "default"
+    "urn:ietf:params:jmap:mail": "work",
+    "urn:ietf:params:jmap:submission": "work"
   },
   "apiUrl": "/jmap",
   "uploadUrl": "/jmap/upload/{accountId}/",
@@ -112,8 +122,15 @@ with the subset of methods listed below.
 }
 ```
 
-Note: `urn:ietf:params:jmap:submission` is deliberately absent — the service
-cannot send email.
+`primaryAccounts` reflects the configured `primary_account` key (see §9). Each
+configured account appears as its own entry in `accounts`; every method call
+must specify an explicit `accountId` matching one of these keys — there is no
+implicit fallback.
+
+Note on `urn:ietf:params:jmap:submission`: the service advertises submission
+support but **intercepts** it. `EmailSubmission/set` retains the draft instead
+of sending and returns `mailjail:intercepted: true` plus a human-readable
+`mailjail:message` so agents can detect the interception.
 
 ### 3.2 Request format
 
@@ -122,13 +139,13 @@ cannot send email.
   "using": ["urn:ietf:params:jmap:core", "urn:ietf:params:jmap:mail"],
   "methodCalls": [
     ["Email/query", {
-      "accountId": "default",
+      "accountId": "work",
       "filter": { "from": "hetzner", "after": "2026-02-01T00:00:00Z" },
       "sort": [{ "property": "receivedAt", "isAscending": false }],
       "limit": 10
     }, "call-0"],
     ["Email/get", {
-      "accountId": "default",
+      "accountId": "work",
       "#ids": { "resultOf": "call-0", "name": "Email/query", "path": "/ids" },
       "properties": ["from", "subject", "receivedAt", "preview", "keywords", "mailboxIds"]
     }, "call-1"]
@@ -181,13 +198,18 @@ Fetch one or more messages by ID.
 
 #### Email/set (restricted)
 
+`accountId` is required and validated; an unknown account ID returns
+`accountNotFound`. Drafts are appended to **that account's** Drafts folder
+(`drafts_folder` in the account's config), and the From address defaults to
+that account's `imap_username`.
+
 Only two operations are permitted:
 
 **1. Create (drafts only)**
 
 ```json
 ["Email/set", {
-  "accountId": "default",
+  "accountId": "work",
   "create": {
     "draft-1": {
       "mailboxIds": { "DRAFTS_FOLDER_ID": true },
@@ -215,7 +237,7 @@ Only two operations are permitted:
 
 ```json
 ["Email/set", {
-  "accountId": "default",
+  "accountId": "work",
   "update": {
     "msg-uid-12345": {
       "keywords/$flagged": true,
@@ -266,13 +288,31 @@ Error types used:
 - `invalidArguments` — malformed request
 - `serverFail` — IMAP backend error
 - `notFound` — message ID not found
+- `accountNotFound` — `accountId` missing or not configured
 - `tooLarge` — request exceeds limits
+- `unknownMethod` — JMAP method not supported by this proxy
 
 ### 3.5 Convenience endpoint (non-JMAP)
 
 For simple agent use (avoid verbose JMAP envelope for common operations):
 
-`GET /healthz` — service health check, returns `{"status": "ok", "imap": "connected"}`
+`GET /healthz` — service health check. Probes every configured account's IMAP
+pool (lazily creating it on first call) and returns:
+
+```json
+{
+  "status": "ok",
+  "accounts": {
+    "work":     {"imap": "connected"},
+    "personal": {"imap": "disconnected"}
+  }
+}
+```
+
+Overall `status` is `"ok"` (HTTP 200) iff the **primary account's** pool is
+healthy. A failing secondary account degrades the per-account entry but does
+not flip the overall status. If the primary fails the response is HTTP 503
+with `status: "error"`.
 
 All other operations go through `POST /jmap` with standard JMAP request format.
 
@@ -370,6 +410,7 @@ mailjail/
 │       ├── app.py           ← WSGI application, routing
 │       ├── config.py        ← Settings (host, port, IMAP server, credentials path)
 │       ├── executor.py      ← JMAP request executor (dispatch, result refs, policy)
+│       ├── registry.py      ← Per-account IMAP pool registry (lazy, thread-safe)
 │       ├── policy.py        ← Allowlist of permitted operations
 │       ├── models/
 │       │   ├── __init__.py
@@ -387,7 +428,10 @@ mailjail/
 │       └── session.py       ← /.well-known/jmap session resource
 └── tests/
     ├── conftest.py
-    ├── test_executor.py     ← Policy enforcement tests
+    ├── test_executor.py     ← Policy enforcement + multi-account routing
+    ├── test_registry.py     ← Lazy per-account pool init
+    ├── test_session.py      ← /.well-known/jmap multi-account session
+    ├── test_app.py          ← WSGI routing (jmap, healthz, well-known)
     ├── test_policy.py       ← Allowlist unit tests
     ├── test_models.py       ← Pydantic model validation
     └── test_imap/
@@ -505,8 +549,18 @@ Both imap_tools and waitress are synchronous and threaded — a natural match.
 Each waitress worker thread can use an IMAP connection directly without
 async/sync bridging.
 
-Connection pooling: maintain a small pool (2-4 connections) using a
-`queue.Queue`. Each request borrows a connection, uses it, returns it.
+**One pool per account.** `AccountRegistry` (in `registry.py`) owns one
+`IMAPPool` per configured account, created **lazily** on the first
+`registry.get(account_id)` call under a per-account lock so a slow login does
+not block other accounts. Construction failures are not cached: a subsequent
+`get` for the same account retries pool creation. A failure for one account
+never prevents `get()` for any other.
+
+On shutdown the entry point calls `registry.close()`, which iterates every
+materialised pool and drains it; never-touched accounts have no pool to close.
+
+Connection pooling within a single account: a small pool (2-4 connections)
+using a `queue.Queue`. Each request borrows a connection, uses it, returns it.
 Connections are validated with NOOP before reuse, reconnected if stale.
 
 ```python
@@ -543,46 +597,64 @@ connections — one thread can always serve /healthz without waiting for IMAP.
 ```toml
 # ~/.config/mailjail/config.toml (owned by $USER, mode 600)
 
+primary_account = "work"
+
 [server]
 host = "127.0.0.1"
 port = 8895
 
-[imap]
-host = "mail.example.com"
+[accounts.work]
+host = "mail.work.example"
 port = 993
 ssl = true
-username = "user@example.com"
-# password from explicit config, password file, env var, Himalaya, or Thunderbird
+username = "user@work.example"
+# password from explicit config, password file, Himalaya, or Thunderbird
 
-[imap.pool]
+[accounts.work.pool]
 size = 3
-idle_timeout = 300  # seconds
 
-[imap.auth]
-provider = "auto"  # mailjail | env | password-file | himalaya | thunderbird | auto
+[accounts.work.auth]
+provider = "himalaya"  # mailjail | env | password-file | himalaya | thunderbird | auto
 himalaya_config_path = "~/.config/himalaya/config.toml"
-himalaya_account = "myaccount"
+himalaya_account = "work"
+
+[accounts.personal]
+host = "mail.personal.example"
+username = "me@personal.example"
+drafts_folder = "INBOX/Drafts"
+
+[accounts.personal.auth]
+provider = "thunderbird"
 thunderbird_dir = "~/.thunderbird"
 # Optional explicit profile name if not using the default Thunderbird profile
 # thunderbird_profile = "abcd.default-release"
 # Helper command receives ${profile}, ${logins_json}, ${key4_db}, ${origin}, ${hostname},
 # ${encrypted_username}, ${encrypted_password} and must print the decrypted password.
-thunderbird_helper_cmd = '''python3 ~/.local/bin/mailjail-thunderbird-password \
-  --profile ${profile} --logins-json ${logins_json} --key4-db ${key4_db} \
-  --origin ${origin}'''
+thunderbird_helper_cmd = "python3 ~/.local/bin/mailjail-thunderbird-password --profile ${profile} --origin ${origin}"
 # Optional hints to choose among multiple Thunderbird logins
-# thunderbird_hostname_hint = "mail.example.com"
-# thunderbird_username_hint = "user@example.com"
-
-[policy]
-# Override default allowed keywords (optional)
-# allowed_custom_keywords = ["needs-reply", "agent-triaged", "low-priority"]
+# thunderbird_hostname_hint = "mail.personal.example"
+# thunderbird_username_hint = "me@personal.example"
 ```
 
-Credential resolution order:
-- `provider = "mailjail"` / `"auto"`: explicit `imap.password`, `MAILJAIL_IMAP_PASSWORD`, then `~/.config/mailjail/password`
-- `provider = "himalaya"` / `"auto"`: parse Himalaya config (`auth.raw` or `auth.cmd`)
+`primary_account` is required and must name an account defined under
+`[accounts.<id>]`; it sources `primaryAccounts` in the JMAP session resource
+and decides overall `/healthz` status. Each account is fully independent — its
+own credentials, IMAP host, drafts folder, and credential provider.
+
+**Env-var overrides are server-level only**: `MAILJAIL_SERVER_HOST` and
+`MAILJAIL_SERVER_PORT`. Per-account fields (passwords, hosts, provider config)
+must come from TOML — there are deliberately no `MAILJAIL_IMAP_*` env vars,
+because they could not unambiguously address one account out of many.
+
+Per-account credential resolution (runs independently for each
+`[accounts.<id>]`):
+- `provider = "mailjail"` / `"auto"`: explicit `password` in the section, or `~/.config/mailjail/password` (or `password_file` in `auth`)
+- `provider = "himalaya"` / `"auto"`: parse the configured Himalaya config (`auth.raw` or `auth.cmd`)
 - `provider = "thunderbird"` / `"auto"`: discover Thunderbird profile/login metadata, then invoke the configured helper command to decrypt and print the password
+
+Legacy single-account configs (a top-level `[imap]` section without
+`[accounts.<id>]`) are rejected at startup with a clear error pointing at the
+new schema.
 
 Thunderbird note: mailjail does **not** implement NSS decryption internally. Instead it provides a stable provider interface that discovers the right profile/login and calls a local helper script/tool, keeping NSS-specific logic outside the main service.
 
@@ -635,21 +707,21 @@ at http://127.0.0.1:8895/jmap.
 List folders:
   curl -s -X POST http://127.0.0.1:8895/jmap -H 'Content-Type: application/json' \
     -d '{"using":["urn:ietf:params:jmap:core","urn:ietf:params:jmap:mail"],
-         "methodCalls":[["Mailbox/get",{"accountId":"default"},""]]}'
+         "methodCalls":[["Mailbox/get",{"accountId":"work"},""]]}'
 
 Search recent from hetzner:
   curl -s -X POST ... -d '{"using":[...],"methodCalls":[
-    ["Email/query",{"accountId":"default","filter":{"from":"hetzner"},"limit":5},"q"],
-    ["Email/get",{"accountId":"default","#ids":{"resultOf":"q","name":"Email/query","path":"/ids"},
+    ["Email/query",{"accountId":"work","filter":{"from":"hetzner"},"limit":5},"q"],
+    ["Email/get",{"accountId":"work","#ids":{"resultOf":"q","name":"Email/query","path":"/ids"},
      "properties":["from","subject","receivedAt","preview"]},"g"]]}'
 
 Star a message:
   curl -s -X POST ... -d '{"using":[...],"methodCalls":[
-    ["Email/set",{"accountId":"default","update":{"INBOX:42":{"keywords/$flagged":true}}},"s"]]}'
+    ["Email/set",{"accountId":"work","update":{"INBOX:42":{"keywords/$flagged":true}}},"s"]]}'
 
 Save a draft:
   curl -s -X POST ... -d '{"using":[...],"methodCalls":[
-    ["Email/set",{"accountId":"default","create":{"d1":{
+    ["Email/set",{"accountId":"work","create":{"d1":{
      "mailboxIds":{"Drafts":true},"keywords":{"$draft":true},
      "from":[{"email":"user@example.com"}],"to":[{"email":"recipient@example.com"}],
      "subject":"Re: Topic","textBody":[{"partId":"1","type":"text/plain"}],
@@ -692,6 +764,17 @@ Save a draft:
 - [ ] Attachment blob download endpoint
 - [ ] Rate limiting (optional)
 - [ ] Structured logging
+
+### Phase 5 — Multi-account support
+
+- [x] Per-account `[accounts.<id>]` config schema with `primary_account` key
+- [x] `accountId` is mandatory on every method call; unknown IDs return
+      `accountNotFound`
+- [x] Per-account `IMAPPool` registered lazily by `AccountRegistry`; failures
+      isolated per account
+- [x] Per-account session resource and `/healthz` (overall status driven by
+      `primary_account`)
+- [x] Old single-account `[imap]` schema is rejected at startup
 
 ### Phase 4 — Polish
 
