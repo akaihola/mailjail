@@ -89,7 +89,7 @@ def handle_mailbox_get(
     Lists all folders via mb.folder.list(), fetches STATUS for each,
     filters by args["ids"] if present.
     """
-    account_id = args.get("accountId", "default")
+    account_id = args["accountId"]
     requested_ids: list[str] | None = args.get("ids")
 
     with pool.connection() as mb:

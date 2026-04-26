@@ -1,4 +1,4 @@
-"""Settings and configuration loading for mailjail."""
+"""Settings and configuration loading for mailjail (multi-account)."""
 
 from __future__ import annotations
 
@@ -12,14 +12,14 @@ from pathlib import Path
 from string import Template
 from typing import Any, Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 DEFAULT_CONFIG_PATH = Path.home() / ".config" / "mailjail" / "config.toml"
 DEFAULT_PASSWORD_PATH = Path.home() / ".config" / "mailjail" / "password"
 DEFAULT_HIMALAYA_CONFIG_PATH = Path.home() / ".config" / "himalaya" / "config.toml"
 DEFAULT_THUNDERBIRD_DIR = Path.home() / ".thunderbird"
 DEFAULT_THUNDERBIRD_HELPER_CMD = (
-    "~/.local/bin/mailjail-thunderbird-password "
+    "python3 ~/.local/bin/mailjail-thunderbird-password "
     "--profile ${profile} --origin ${origin}"
 )
 
@@ -33,9 +33,7 @@ CredentialProvider = Literal[
 ]
 
 
-class Settings(BaseModel):
-    server_host: str = "127.0.0.1"
-    server_port: int = 8895
+class AccountSettings(BaseModel):
     imap_host: str = "mail.example.com"
     imap_port: int = 993
     imap_ssl: bool = True
@@ -44,6 +42,7 @@ class Settings(BaseModel):
     pool_size: int = 3
     drafts_folder: str = "Drafts"
     credential_provider: CredentialProvider = "mailjail"
+    password_file: str | None = None
     himalaya_config_path: str = str(DEFAULT_HIMALAYA_CONFIG_PATH)
     himalaya_account: str = ""
     thunderbird_dir: str = str(DEFAULT_THUNDERBIRD_DIR)
@@ -51,6 +50,22 @@ class Settings(BaseModel):
     thunderbird_helper_cmd: str = DEFAULT_THUNDERBIRD_HELPER_CMD
     thunderbird_hostname_hint: str | None = None
     thunderbird_username_hint: str | None = None
+
+
+class Settings(BaseModel):
+    server_host: str = "127.0.0.1"
+    server_port: int = 8895
+    primary_account: str
+    accounts: dict[str, AccountSettings]
+
+    @model_validator(mode="after")
+    def _check_primary(self) -> "Settings":
+        if self.primary_account not in self.accounts:
+            raise ValueError(
+                f"primary_account {self.primary_account!r} is not defined in "
+                f"[accounts.*]; known accounts: {sorted(self.accounts)}"
+            )
+        return self
 
 
 @dataclass(slots=True)
@@ -74,26 +89,126 @@ class CredentialError(RuntimeError):
     """Raised when credentials cannot be resolved from a configured provider."""
 
 
+class ConfigError(RuntimeError):
+    """Raised when the on-disk config cannot be parsed into Settings."""
+
+
+_ACCOUNT_TOML_FIELD_MAP = {
+    "host": "imap_host",
+    "port": "imap_port",
+    "ssl": "imap_ssl",
+    "username": "imap_username",
+    "password": "imap_password",
+    "drafts_folder": "drafts_folder",
+}
+
+_ACCOUNT_AUTH_TOML_FIELDS = (
+    "provider",
+    "password_file",
+    "himalaya_config_path",
+    "himalaya_account",
+    "thunderbird_dir",
+    "thunderbird_profile",
+    "thunderbird_helper_cmd",
+    "thunderbird_hostname_hint",
+    "thunderbird_username_hint",
+)
+
+
 def load_settings(config_path: Path = DEFAULT_CONFIG_PATH) -> Settings:
-    """Read TOML config and resolve credentials.
+    """Read TOML config and resolve credentials for each account.
 
-    Merge order for non-secret settings:
-    defaults → TOML file (if exists) → MAILJAIL_* env vars.
+    Required schema:
 
-    Credential providers:
-    - ``mailjail`` / ``auto``: explicit TOML password, env var, password file
-    - ``himalaya`` / ``auto``: parse Himalaya config (supports auth.raw and auth.cmd)
-    - ``thunderbird`` / ``auto``: read Thunderbird profile metadata and invoke a
-      configured helper command that returns the decrypted password on stdout
+        [server]               # optional
+        host = "127.0.0.1"
+        port = 8895
+
+        primary_account = "work"
+
+        [accounts.work]
+        host = "mail.example.com"
+        username = "user@example.com"
+        # password = "..."  OR  [accounts.work.auth] provider = "himalaya"
+        [accounts.work.pool]
+        size = 3
+        [accounts.work.auth]
+        provider = "himalaya"
+        himalaya_config_path = "..."
+        himalaya_account = "work"
+
+        [accounts.personal]
+        ...
+
+    Server-level env-var overrides:
+        MAILJAIL_SERVER_HOST, MAILJAIL_SERVER_PORT
+    Per-account configuration is TOML-only — there are no per-account env vars.
     """
+    if not config_path.exists():
+        raise ConfigError(f"mailjail config not found: {config_path}")
+
+    with open(config_path, "rb") as f:
+        raw = tomllib.load(f)
+
+    if "imap" in raw and "accounts" not in raw:
+        raise ConfigError(
+            f"{config_path}: legacy single-account [imap] schema is no longer "
+            "supported. Migrate to per-account sections under [accounts.<id>] "
+            "and add a top-level `primary_account = \"<id>\"` key."
+        )
+    if "accounts" not in raw or not raw["accounts"]:
+        raise ConfigError(
+            f"{config_path}: no [accounts.*] sections found; at least one account "
+            "is required."
+        )
+    if "primary_account" not in raw:
+        raise ConfigError(
+            f"{config_path}: top-level `primary_account` key is required."
+        )
+
+    server_data: dict[str, Any] = {}
+    server = raw.get("server", {})
+    if "host" in server:
+        server_data["server_host"] = server["host"]
+    if "port" in server:
+        server_data["server_port"] = server["port"]
+
+    env_host = os.environ.get("MAILJAIL_SERVER_HOST")
+    if env_host is not None:
+        server_data["server_host"] = env_host
+    env_port = os.environ.get("MAILJAIL_SERVER_PORT")
+    if env_port is not None:
+        server_data["server_port"] = env_port
+
+    accounts: dict[str, AccountSettings] = {}
+    for account_id, section in raw["accounts"].items():
+        accounts[account_id] = _build_account(account_id, section)
+
+    return Settings.model_validate(
+        {
+            **server_data,
+            "primary_account": raw["primary_account"],
+            "accounts": accounts,
+        }
+    )
+
+
+def _build_account(account_id: str, section: dict[str, Any]) -> AccountSettings:
+    section = dict(section)
+    pool_section = section.pop("pool", {}) or {}
+    auth_section = section.pop("auth", {}) or {}
+
     data: dict[str, Any] = {}
+    for toml_key, field in _ACCOUNT_TOML_FIELD_MAP.items():
+        if toml_key in section:
+            data[field] = section[toml_key]
+    if "size" in pool_section:
+        data["pool_size"] = pool_section["size"]
 
-    if config_path.exists():
-        with open(config_path, "rb") as f:
-            raw = tomllib.load(f)
-        _merge_toml_into_data(raw, data)
-
-    _merge_env_into_data(data)
+    for key in _ACCOUNT_AUTH_TOML_FIELDS:
+        if key in auth_section:
+            target = "credential_provider" if key == "provider" else key
+            data[target] = auth_section[key]
 
     provider = data.get("credential_provider", "mailjail")
     if provider in {"mailjail", "auto", "env", "password-file"}:
@@ -103,80 +218,17 @@ def load_settings(config_path: Path = DEFAULT_CONFIG_PATH) -> Settings:
     if provider in {"thunderbird", "auto"} and not data.get("imap_password"):
         _apply_thunderbird_credentials(data)
 
-    return Settings.model_validate(data)
-
-
-def _merge_toml_into_data(raw: dict[str, Any], data: dict[str, Any]) -> None:
-    server = raw.get("server", {})
-    imap = raw.get("imap", {}).copy()
-    imap_pool = imap.pop("pool", {})
-    imap_auth = imap.pop("auth", {})
-
-    if "host" in server:
-        data["server_host"] = server["host"]
-    if "port" in server:
-        data["server_port"] = server["port"]
-    if "host" in imap:
-        data["imap_host"] = imap["host"]
-    if "port" in imap:
-        data["imap_port"] = imap["port"]
-    if "ssl" in imap:
-        data["imap_ssl"] = imap["ssl"]
-    if "username" in imap:
-        data["imap_username"] = imap["username"]
-    if "password" in imap:
-        data["imap_password"] = imap["password"]
-    if "drafts_folder" in imap:
-        data["drafts_folder"] = imap["drafts_folder"]
-    if "size" in imap_pool:
-        data["pool_size"] = imap_pool["size"]
-
-    if "provider" in imap_auth:
-        data["credential_provider"] = imap_auth["provider"]
-    if "himalaya_config_path" in imap_auth:
-        data["himalaya_config_path"] = imap_auth["himalaya_config_path"]
-    if "himalaya_account" in imap_auth:
-        data["himalaya_account"] = imap_auth["himalaya_account"]
-    if "thunderbird_dir" in imap_auth:
-        data["thunderbird_dir"] = imap_auth["thunderbird_dir"]
-    if "thunderbird_profile" in imap_auth:
-        data["thunderbird_profile"] = imap_auth["thunderbird_profile"]
-    if "thunderbird_helper_cmd" in imap_auth:
-        data["thunderbird_helper_cmd"] = imap_auth["thunderbird_helper_cmd"]
-    if "thunderbird_hostname_hint" in imap_auth:
-        data["thunderbird_hostname_hint"] = imap_auth["thunderbird_hostname_hint"]
-    if "thunderbird_username_hint" in imap_auth:
-        data["thunderbird_username_hint"] = imap_auth["thunderbird_username_hint"]
-
-
-def _merge_env_into_data(data: dict[str, Any]) -> None:
-    env_map = {
-        "MAILJAIL_SERVER_HOST": "server_host",
-        "MAILJAIL_SERVER_PORT": "server_port",
-        "MAILJAIL_IMAP_HOST": "imap_host",
-        "MAILJAIL_IMAP_PORT": "imap_port",
-        "MAILJAIL_IMAP_SSL": "imap_ssl",
-        "MAILJAIL_IMAP_USERNAME": "imap_username",
-        "MAILJAIL_IMAP_PASSWORD": "imap_password",
-        "MAILJAIL_POOL_SIZE": "pool_size",
-        "MAILJAIL_DRAFTS_FOLDER": "drafts_folder",
-        "MAILJAIL_CREDENTIAL_PROVIDER": "credential_provider",
-        "MAILJAIL_HIMALAYA_CONFIG_PATH": "himalaya_config_path",
-        "MAILJAIL_HIMALAYA_ACCOUNT": "himalaya_account",
-        "MAILJAIL_THUNDERBIRD_DIR": "thunderbird_dir",
-        "MAILJAIL_THUNDERBIRD_PROFILE": "thunderbird_profile",
-        "MAILJAIL_THUNDERBIRD_HELPER_CMD": "thunderbird_helper_cmd",
-        "MAILJAIL_THUNDERBIRD_HOSTNAME_HINT": "thunderbird_hostname_hint",
-        "MAILJAIL_THUNDERBIRD_USERNAME_HINT": "thunderbird_username_hint",
-    }
-    for env_key, field in env_map.items():
-        val = os.environ.get(env_key)
-        if val is not None:
-            data[field] = val
+    try:
+        return AccountSettings.model_validate(data)
+    except Exception as exc:
+        raise ConfigError(
+            f"Account {account_id!r}: failed to build settings: {exc}"
+        ) from exc
 
 
 def _apply_mailjail_credentials(data: dict[str, Any]) -> None:
-    password_path = DEFAULT_PASSWORD_PATH
+    password_path_str = data.get("password_file")
+    password_path = Path(password_path_str) if password_path_str else DEFAULT_PASSWORD_PATH
     if password_path.exists():
         password = password_path.read_text().strip()
         if password:

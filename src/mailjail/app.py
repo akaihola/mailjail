@@ -8,8 +8,8 @@ from pydantic import ValidationError
 
 from .config import Settings
 from .executor import Executor
-from .imap.connection import IMAPPool
 from .models.core import JMAPErrorType, JMAPRequest, make_error_invocation
+from .registry import AccountRegistry
 from .session import session_resource
 
 logger = logging.getLogger(__name__)
@@ -32,16 +32,44 @@ def _json_response(
     return [data]
 
 
+def _healthz_body(
+    registry: AccountRegistry, primary_account: str
+) -> tuple[bool, dict[str, Any]]:
+    """Return (overall_ok, response_body) for /healthz.
+
+    Probes every configured account's pool (lazily creates if not yet
+    materialised). Overall status is ``ok`` iff the primary account's pool
+    is healthy; secondary failures degrade per-account status but not
+    overall.
+    """
+    per_account: dict[str, dict[str, str]] = {}
+    primary_ok = False
+    for account_id in registry.account_ids():
+        try:
+            ctx = registry.get(account_id)
+            ok = ctx.pool.health_check()
+        except Exception:
+            logger.exception("Health check failed for account %r", account_id)
+            ok = False
+        per_account[account_id] = {"imap": "connected" if ok else "disconnected"}
+        if account_id == primary_account:
+            primary_ok = ok
+    return primary_ok, {
+        "status": "ok" if primary_ok else "error",
+        "accounts": per_account,
+    }
+
+
 def make_app(
     executor: Executor,
-    pool: IMAPPool,
+    registry: AccountRegistry,
     settings: Settings,
 ) -> Callable:
     """Return a WSGI callable routing:
 
     POST  /jmap                → executor.execute()
     GET   /.well-known/jmap    → session_resource()
-    GET   /healthz             → pool.health_check()
+    GET   /healthz             → per-account pool health
     All other routes           → 404
     """
 
@@ -49,21 +77,14 @@ def make_app(
         method = environ.get("REQUEST_METHOD", "GET")
         path = environ.get("PATH_INFO", "/")
 
-        # /.well-known/jmap — session resource
         if method == "GET" and path == "/.well-known/jmap":
             return _json_response(start_response, "200 OK", session_resource(settings))
 
-        # /healthz — health check
         if method == "GET" and path == "/healthz":
-            imap_ok = pool.health_check()
-            status_code = "200 OK" if imap_ok else "503 Service Unavailable"
-            body = {
-                "status": "ok" if imap_ok else "error",
-                "imap": "connected" if imap_ok else "disconnected",
-            }
+            primary_ok, body = _healthz_body(registry, settings.primary_account)
+            status_code = "200 OK" if primary_ok else "503 Service Unavailable"
             return _json_response(start_response, status_code, body)
 
-        # POST /jmap — JMAP API endpoint
         if method == "POST" and path == "/jmap":
             content_type = environ.get("CONTENT_TYPE", "")
             if "application/json" not in content_type:
@@ -109,14 +130,12 @@ def make_app(
                     {"methodResponses": [list(inv)]},
                 )
 
-            # JMAP spec: always return 200, errors are in methodResponses
             return _json_response(
                 start_response,
                 "200 OK",
                 response.model_dump(),
             )
 
-        # 404 for everything else
         return _json_response(
             start_response,
             "404 Not Found",

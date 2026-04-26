@@ -3,8 +3,6 @@
 import logging
 from typing import Any
 
-from .config import Settings
-from .imap.connection import IMAPPool
 from .models.core import (
     Invocation,
     JMAPErrorType,
@@ -22,6 +20,7 @@ from .policy import (
     RESTRICTED_METHODS,
     check_email_set,
 )
+from .registry import AccountRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -107,9 +106,8 @@ def _resolve_value(value: Any, previous_responses: list[Invocation]) -> Any:
 class Executor:
     """Execute JMAP method calls in order, resolving result references."""
 
-    def __init__(self, pool: IMAPPool, settings: Settings) -> None:
-        self._pool = pool
-        self._settings = settings
+    def __init__(self, registry: AccountRegistry) -> None:
+        self._registry = registry
 
     def execute(self, request: JMAPRequest) -> JMAPResponse:
         """Execute all method calls in order; resolve result refs; return JMAPResponse."""
@@ -136,13 +134,32 @@ class Executor:
                 call_id,
             )
 
+        account_id = args.get("accountId")
+        if not isinstance(account_id, str) or not account_id:
+            return make_error_invocation(
+                JMAPErrorType.ACCOUNT_NOT_FOUND,
+                "accountId is required and must be a non-empty string",
+                call_id,
+            )
+        try:
+            context = self._registry.get(account_id)
+        except KeyError:
+            return make_error_invocation(
+                JMAPErrorType.ACCOUNT_NOT_FOUND,
+                f"Unknown accountId: {account_id!r}",
+                call_id,
+            )
+
+        pool = context.pool
+        settings = context.settings
+
         try:
             if method == "Mailbox/get":
-                name, result = handle_mailbox_get(args, self._pool)
+                name, result = handle_mailbox_get(args, pool)
             elif method == "Email/query":
-                name, result = handle_email_query(args, self._pool)
+                name, result = handle_email_query(args, pool)
             elif method == "Email/get":
-                name, result = handle_email_get(args, self._pool)
+                name, result = handle_email_get(args, pool)
             elif method == "Email/set":
                 violations = check_email_set(args)
                 if violations:
@@ -151,9 +168,9 @@ class Executor:
                         "; ".join(violations),
                         call_id,
                     )
-                name, result = handle_email_set(args, self._pool, self._settings)
+                name, result = handle_email_set(args, pool, settings)
             elif method == "EmailSubmission/set":
-                name, result = handle_email_submission_set(args)
+                name, result = handle_email_submission_set(args, settings)
             else:
                 # Should not reach here given the checks above
                 return make_error_invocation(

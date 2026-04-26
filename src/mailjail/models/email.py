@@ -72,7 +72,7 @@ def handle_email_query(
     6. Map uids to email IDs via folder_uid_to_email_id.
     7. Return ("Email/query", {"accountId":..., "ids":[...], "total":..., "position":...})
     """
-    account_id = args.get("accountId", "default")
+    account_id = args["accountId"]
     filter_cond = args.get("filter", {})
     limit = args.get("limit", 256)
     position = args.get("position", 0)
@@ -121,7 +121,7 @@ def handle_email_get(
     """
     from imap_tools import AND
 
-    account_id = args.get("accountId", "default")
+    account_id = args["accountId"]
     ids: list[str] = args.get("ids", [])
     properties: list[str] | None = args.get("properties")
 

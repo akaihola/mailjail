@@ -5,6 +5,8 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
+from ..config import AccountSettings
+
 logger = logging.getLogger(__name__)
 
 INTERCEPT_NOTE = (
@@ -16,6 +18,7 @@ INTERCEPT_NOTE = (
 
 def handle_email_submission_set(
     args: dict[str, Any],
+    settings: AccountSettings,
 ) -> tuple[str, dict[str, Any]]:
     """Fake EmailSubmission/set: accept the call, return a plausible response.
 
@@ -28,8 +31,12 @@ def handle_email_submission_set(
 
         mailjail:intercepted  — always True
         mailjail:message      — human/agent-readable explanation
+
+    The referenced ``emailId`` is **not** validated against the account's pool
+    or cross-checked for ownership: intercepted submissions never actually send
+    anything, so a draft from a different account (or a bogus id) is harmless.
     """
-    account_id = args.get("accountId", "default")
+    account_id = args["accountId"]
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     created: dict[str, Any] = {}
@@ -47,8 +54,10 @@ def handle_email_submission_set(
         submission_id = f"mj-{uuid.uuid4().hex[:16]}"
         created[create_id] = {"id": submission_id, "sendAt": now}
         logger.info(
-            "EmailSubmission/set intercepted: create_id=%r emailId=%r "
-            "→ fake submission_id=%r; draft retained in Drafts folder",
+            "EmailSubmission/set intercepted: account=%r from=%r create_id=%r "
+            "emailId=%r → fake submission_id=%r; draft retained in Drafts folder",
+            account_id,
+            settings.imap_username,
             create_id,
             email_id,
             submission_id,

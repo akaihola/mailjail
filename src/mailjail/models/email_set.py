@@ -5,7 +5,7 @@ from typing import Any
 
 from imap_tools import MailBox
 
-from ..config import Settings
+from ..config import AccountSettings
 from ..imap.connection import IMAPPool
 from ..imap.drafts import append_draft, compose_draft
 from ..imap.fetch import email_id_to_folder_uid
@@ -91,7 +91,7 @@ def handle_email_set_update(
 def handle_email_set_create(
     create: dict[str, Any],  # {create_id: email_object}
     pool: IMAPPool,
-    settings: Settings,
+    settings: AccountSettings,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """Create draft messages. Returns (created_map, not_created_map).
 
@@ -134,14 +134,14 @@ def handle_email_set_create(
 def handle_email_set(
     args: dict[str, Any],
     pool: IMAPPool,
-    settings: Settings,
+    settings: AccountSettings,
 ) -> tuple[str, dict[str, Any]]:
     """Top-level Email/set handler.
 
     Policy check is done by the executor before calling this function.
     Returns ("Email/set", response_dict).
     """
-    account_id = args.get("accountId", "default")
+    account_id = args["accountId"]
 
     created: dict[str, Any] = {}
     not_created: dict[str, Any] = {}
