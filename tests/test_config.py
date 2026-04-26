@@ -8,6 +8,7 @@ import pytest
 
 from mailjail.config import (
     ConfigError,
+    CredentialError,
     load_settings,
     read_himalaya_credentials,
     read_thunderbird_login,
@@ -281,6 +282,38 @@ thunderbird_dir = "{thunderbird_dir}"
 
     settings = load_settings(config_path)
     assert settings.accounts["personal"].imap_password == "my-secret-imap-password"
+
+
+def test_thunderbird_provider_wraps_decryption_errors(tmp_path: Path) -> None:
+    """A corrupt key4.db should surface as CredentialError, not raw sqlite3."""
+    from tests.test_thunderbird import synthetic_profile_factory
+
+    profile_dir = synthetic_profile_factory(tmp_path)
+    thunderbird_dir = profile_dir.parent
+    profile_dir.rename(thunderbird_dir / "abcd.default-release")
+    (thunderbird_dir / "profiles.ini").write_text(PROFILES_INI)
+
+    # Corrupt key4.db — sqlite3 will raise DatabaseError when opened.
+    (thunderbird_dir / "abcd.default-release" / "key4.db").write_bytes(
+        b"not-a-sqlite-file"
+    )
+
+    config_path = tmp_path / "mailjail.toml"
+    config_path.write_text(
+        f'''
+primary_account = "personal"
+
+[accounts.personal]
+username = "user@example.com"
+
+[accounts.personal.auth]
+provider = "thunderbird"
+thunderbird_dir = "{thunderbird_dir}"
+'''
+    )
+
+    with pytest.raises(CredentialError, match="Thunderbird decryption failed"):
+        load_settings(config_path)
 
 
 # --- Direct credential helper tests (unchanged) ---
