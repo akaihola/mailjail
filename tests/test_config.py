@@ -8,7 +8,6 @@ import pytest
 
 from mailjail.config import (
     ConfigError,
-    CredentialError,
     load_settings,
     read_himalaya_credentials,
     read_thunderbird_login,
@@ -198,15 +197,16 @@ himalaya_account = "testuser"
 
 
 def test_two_accounts_can_use_different_providers(tmp_path: Path) -> None:
+    from tests.test_thunderbird import synthetic_profile_factory
+
     himalaya_path = tmp_path / "himalaya.toml"
     himalaya_path.write_text(HIMALAYA_CONFIG)
 
     thunderbird_dir = tmp_path / ".thunderbird"
-    profile_dir = thunderbird_dir / "abcd.default-release"
-    profile_dir.mkdir(parents=True)
+    thunderbird_dir.mkdir()
+    profile_dir = synthetic_profile_factory(thunderbird_dir)
+    profile_dir.rename(thunderbird_dir / "abcd.default-release")
     (thunderbird_dir / "profiles.ini").write_text(PROFILES_INI)
-    (profile_dir / "logins.json").write_text(LOGINS_JSON)
-    (profile_dir / "key4.db").write_text("placeholder")
 
     config_path = tmp_path / "mailjail.toml"
     config_path.write_text(
@@ -227,13 +227,12 @@ username = "user@example.com"
 [accounts.personal.auth]
 provider = "thunderbird"
 thunderbird_dir = "{thunderbird_dir}"
-thunderbird_helper_cmd = "python3 -c \\"print('secret-from-thunderbird')\\""
 '''
     )
 
     settings = load_settings(config_path)
     assert settings.accounts["work"].imap_password == "secret-from-himalaya"
-    assert settings.accounts["personal"].imap_password == "secret-from-thunderbird"
+    assert settings.accounts["personal"].imap_password == "my-secret-imap-password"
 
 
 def test_unknown_thunderbird_helper_cmd_raises(tmp_path: Path) -> None:
@@ -318,59 +317,3 @@ def test_read_thunderbird_login(tmp_path: Path) -> None:
     assert login.encrypted_password == "encrypted-pass"
 
 
-def test_decrypt_thunderbird_login_uses_helper(tmp_path: Path) -> None:
-    profile_dir = tmp_path / "profile"
-    profile_dir.mkdir()
-    logins_json = profile_dir / "logins.json"
-    key4_db = profile_dir / "key4.db"
-    logins_json.write_text("{}")
-    key4_db.write_text("placeholder")
-
-    login = _login(profile_dir, logins_json, key4_db)
-    password = decrypt_thunderbird_login(
-        login, "python3 -c \"print('secret-from-helper')\""
-    )
-    assert password == "secret-from-helper"
-
-
-def test_thunderbird_helper_failure_raises(tmp_path: Path) -> None:
-    profile_dir = tmp_path / "profile"
-    profile_dir.mkdir()
-    logins_json = profile_dir / "logins.json"
-    key4_db = profile_dir / "key4.db"
-    logins_json.write_text("{}")
-    key4_db.write_text("placeholder")
-
-    login = _login(profile_dir, logins_json, key4_db)
-    with pytest.raises(CredentialError, match="Thunderbird helper failed"):
-        decrypt_thunderbird_login(login, "python3 -c \"import sys; sys.exit(2)\"")
-
-
-def test_thunderbird_helper_template_mentions_expected_placeholders() -> None:
-    template = thunderbird_helper_template()
-    assert "${profile}" in template
-    assert "${origin}" in template
-    assert "${logins_json}" not in template
-    assert "${key4_db}" not in template
-
-
-def test_default_thunderbird_helper_cmd_uses_profile_and_origin_only() -> None:
-    from mailjail.config import DEFAULT_THUNDERBIRD_HELPER_CMD
-
-    assert DEFAULT_THUNDERBIRD_HELPER_CMD == (
-        "python3 ~/.local/bin/mailjail-thunderbird-password "
-        "--profile ${profile} --origin ${origin}"
-    )
-
-
-def _login(profile_dir: Path, logins_json: Path, key4_db: Path):
-    from mailjail.config import ThunderbirdLogin
-
-    return ThunderbirdLogin(
-        profile=profile_dir,
-        logins_json=logins_json,
-        key4_db=key4_db,
-        hostname="imap://mail.example.com",
-        encrypted_username="enc-user",
-        encrypted_password="enc-pass",
-    )
