@@ -206,7 +206,9 @@ class TestFullDecryptionFlow:
         logins_json = synthetic_profile / "logins.json"
         profile_key = thunderbird._unwrap_profile_key(key4_db)
         login = thunderbird.load_matching_login(logins_json, "imap://mail.example.com")
-        decrypted = thunderbird._decrypt_login_blob(login["encryptedPassword"], profile_key)
+        encrypted = login["encryptedPassword"]
+        assert isinstance(encrypted, str)
+        decrypted = thunderbird._decrypt_login_blob(encrypted, profile_key)
         assert decrypted == LOGIN_PASSWORD
 
     def test_decrypt_login_username(self, synthetic_profile: Path) -> None:
@@ -214,18 +216,19 @@ class TestFullDecryptionFlow:
         logins_json = synthetic_profile / "logins.json"
         profile_key = thunderbird._unwrap_profile_key(key4_db)
         login = thunderbird.load_matching_login(logins_json, "imap://mail.example.com")
-        decrypted = thunderbird._decrypt_login_blob(login["encryptedUsername"], profile_key)
+        encrypted = login["encryptedUsername"]
+        assert isinstance(encrypted, str)
+        decrypted = thunderbird._decrypt_login_blob(encrypted, profile_key)
         assert decrypted == "user@example.com"
 
-    def test_decrypt_with_local_tooling(self, synthetic_profile: Path) -> None:
+    def test_decrypt_login_end_to_end(self, synthetic_profile: Path) -> None:
         logins_json = synthetic_profile / "logins.json"
         login = thunderbird.load_matching_login(logins_json, "imap://mail.example.com")
+        encrypted = login.get("encryptedPassword")
+        assert isinstance(encrypted, str)
         result = thunderbird.decrypt_login(
-            profile=synthetic_profile,
-            logins_json=logins_json,
             key4_db=synthetic_profile / "key4.db",
-            origin="imap://mail.example.com",
-            encrypted_password=login.get("encryptedPassword"),
+            encrypted_password=encrypted,
         )
         assert result == LOGIN_PASSWORD
 
@@ -248,9 +251,6 @@ class TestRejections:
     def test_missing_encrypted_password(self) -> None:
         with pytest.raises(ValueError, match="missing encrypted password"):
             thunderbird.decrypt_login(
-                profile=Path("/tmp"),
-                logins_json=Path("/tmp"),
                 key4_db=Path("/tmp"),
-                origin="imap://x",
                 encrypted_password=None,
             )
