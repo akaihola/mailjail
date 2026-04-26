@@ -9,7 +9,6 @@ import tomllib
 from configparser import ConfigParser
 from dataclasses import dataclass
 from pathlib import Path
-from string import Template
 from typing import Any, Literal
 
 from pydantic import BaseModel, model_validator
@@ -18,10 +17,6 @@ DEFAULT_CONFIG_PATH = Path.home() / ".config" / "mailjail" / "config.toml"
 DEFAULT_PASSWORD_PATH = Path.home() / ".config" / "mailjail" / "password"
 DEFAULT_HIMALAYA_CONFIG_PATH = Path.home() / ".config" / "himalaya" / "config.toml"
 DEFAULT_THUNDERBIRD_DIR = Path.home() / ".thunderbird"
-DEFAULT_THUNDERBIRD_HELPER_CMD = (
-    "python3 ~/.local/bin/mailjail-thunderbird-password "
-    "--profile ${profile} --origin ${origin}"
-)
 
 CredentialProvider = Literal[
     "mailjail",
@@ -47,7 +42,6 @@ class AccountSettings(BaseModel):
     himalaya_account: str = ""
     thunderbird_dir: str = str(DEFAULT_THUNDERBIRD_DIR)
     thunderbird_profile: str | None = None
-    thunderbird_helper_cmd: str = DEFAULT_THUNDERBIRD_HELPER_CMD
     thunderbird_hostname_hint: str | None = None
     thunderbird_username_hint: str | None = None
 
@@ -109,7 +103,6 @@ _ACCOUNT_AUTH_TOML_FIELDS = (
     "himalaya_account",
     "thunderbird_dir",
     "thunderbird_profile",
-    "thunderbird_helper_cmd",
     "thunderbird_hostname_hint",
     "thunderbird_username_hint",
 )
@@ -198,6 +191,30 @@ def _build_account(account_id: str, section: dict[str, Any]) -> AccountSettings:
     pool_section = section.pop("pool", {}) or {}
     auth_section = section.pop("auth", {}) or {}
 
+    known_section_keys = set(_ACCOUNT_TOML_FIELD_MAP)
+    extra_section = set(section) - known_section_keys
+    if extra_section:
+        raise ConfigError(
+            f"Account {account_id!r}: unknown key(s) in [accounts.{account_id}]: "
+            f"{sorted(extra_section)}"
+        )
+
+    known_pool_keys = {"size"}
+    extra_pool = set(pool_section) - known_pool_keys
+    if extra_pool:
+        raise ConfigError(
+            f"Account {account_id!r}: unknown key(s) in "
+            f"[accounts.{account_id}.pool]: {sorted(extra_pool)}"
+        )
+
+    known_auth_keys = set(_ACCOUNT_AUTH_TOML_FIELDS)
+    extra_auth = set(auth_section) - known_auth_keys
+    if extra_auth:
+        raise ConfigError(
+            f"Account {account_id!r}: unknown key(s) in "
+            f"[accounts.{account_id}.auth]: {sorted(extra_auth)}"
+        )
+
     data: dict[str, Any] = {}
     for toml_key, field in _ACCOUNT_TOML_FIELD_MAP.items():
         if toml_key in section:
@@ -251,7 +268,6 @@ def _apply_thunderbird_credentials(data: dict[str, Any]) -> None:
     profile_name = data.get("thunderbird_profile")
     username_hint = data.get("thunderbird_username_hint") or data.get("imap_username")
     hostname_hint = data.get("thunderbird_hostname_hint") or data.get("imap_host")
-    helper_cmd = data.get("thunderbird_helper_cmd") or DEFAULT_THUNDERBIRD_HELPER_CMD
 
     login = read_thunderbird_login(
         thunderbird_dir=thunderbird_dir,
@@ -259,7 +275,24 @@ def _apply_thunderbird_credentials(data: dict[str, Any]) -> None:
         username_hint=username_hint,
         hostname_hint=hostname_hint,
     )
-    password = decrypt_thunderbird_login(login, helper_cmd)
+
+    try:
+        from mailjail.thunderbird import decrypt_login
+    except ImportError as exc:
+        raise CredentialError(
+            "Thunderbird credential provider requires the 'cryptography' "
+            "package. Install with: pip install 'mailjail[thunderbird]'"
+        ) from exc
+
+    try:
+        password = decrypt_login(
+            key4_db=login.key4_db,
+            encrypted_password=login.encrypted_password,
+        )
+    except Exception as exc:
+        raise CredentialError(
+            f"Thunderbird decryption failed: {exc}"
+        ) from exc
 
     if not data.get("imap_host"):
         data["imap_host"] = _origin_host(login.hostname)
@@ -379,46 +412,6 @@ def read_thunderbird_login(
         encrypted_username=entry.get("encryptedUsername"),
         encrypted_password=entry["encryptedPassword"],
     )
-
-
-def decrypt_thunderbird_login(login: ThunderbirdLogin, helper_cmd: str) -> str:
-    mapping = {
-        "profile": str(login.profile),
-        "logins_json": str(login.logins_json),
-        "key4_db": str(login.key4_db),
-        "origin": login.hostname,
-        "hostname": _origin_host(login.hostname),
-        "encrypted_username": login.encrypted_username or "",
-        "encrypted_password": login.encrypted_password,
-    }
-    cmd = Template(helper_cmd).safe_substitute(mapping)
-    try:
-        result = subprocess.run(
-            cmd,
-            shell=True,
-            text=True,
-            capture_output=True,
-            check=False,
-        )
-    except OSError as exc:
-        raise CredentialError(f"Failed to invoke Thunderbird helper: {exc}") from exc
-
-    if result.returncode != 0:
-        stderr = result.stderr.strip()
-        raise CredentialError(
-            "Thunderbird helper failed with exit code "
-            f"{result.returncode}: {stderr or 'no stderr output'}"
-        )
-
-    password = result.stdout.strip()
-    if not password:
-        raise CredentialError("Thunderbird helper returned an empty password")
-    return password
-
-
-def thunderbird_helper_template() -> str:
-    """Return the default helper command template used for Thunderbird support."""
-    return DEFAULT_THUNDERBIRD_HELPER_CMD
 
 
 def _origin_host(origin: str) -> str:

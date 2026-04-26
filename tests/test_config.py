@@ -9,11 +9,9 @@ import pytest
 from mailjail.config import (
     ConfigError,
     CredentialError,
-    decrypt_thunderbird_login,
     load_settings,
     read_himalaya_credentials,
     read_thunderbird_login,
-    thunderbird_helper_template,
 )
 
 
@@ -236,6 +234,26 @@ thunderbird_helper_cmd = "python3 -c \\"print('secret-from-thunderbird')\\""
     settings = load_settings(config_path)
     assert settings.accounts["work"].imap_password == "secret-from-himalaya"
     assert settings.accounts["personal"].imap_password == "secret-from-thunderbird"
+
+
+def test_unknown_thunderbird_helper_cmd_raises(tmp_path: Path) -> None:
+    """Legacy `thunderbird_helper_cmd` must hard-fail (no silent ignore)."""
+    config_path = tmp_path / "mailjail.toml"
+    config_path.write_text(
+        '''
+primary_account = "p"
+
+[accounts.p]
+username = "user@example.com"
+password = "pw"
+
+[accounts.p.auth]
+provider = "mailjail"
+thunderbird_helper_cmd = "/old/script"
+'''
+    )
+    with pytest.raises(ConfigError, match="thunderbird_helper_cmd"):
+        load_settings(config_path)
 
 
 def test_thunderbird_provider_uses_in_process_decryption(tmp_path: Path) -> None:
