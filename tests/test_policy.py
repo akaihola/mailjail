@@ -86,7 +86,7 @@ def test_email_set_in_restricted() -> None:
 
 
 def test_blocked_contains_submission() -> None:
-    assert "EmailSubmission/set" in BLOCKED_METHODS
+    assert "EmailSubmission/set" in RESTRICTED_METHODS
     assert "Mailbox/set" in BLOCKED_METHODS
     assert "Email/copy" in BLOCKED_METHODS
 

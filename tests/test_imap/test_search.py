@@ -56,11 +56,54 @@ def test_filter_empty_matches_all() -> None:
     assert str(result) == "(ALL)"
 
 
-def test_filter_compound_operator_raises() -> None:
-    with pytest.raises(ValueError, match="compound"):
+def test_filter_compound_and() -> None:
+    result = str(
         jmap_filter_to_imap(
             {"operator": "AND", "conditions": [{"from": "alice"}, {"subject": "hi"}]}
         )
+    )
+    assert "FROM" in result and "SUBJECT" in result and "alice" in result
+
+
+def test_filter_compound_or() -> None:
+    result = str(
+        jmap_filter_to_imap(
+            {"operator": "OR", "conditions": [{"from": "alice"}, {"from": "bob"}]}
+        )
+    )
+    assert result.startswith("(OR")
+    assert "alice" in result and "bob" in result
+
+
+def test_filter_compound_not() -> None:
+    result = str(
+        jmap_filter_to_imap({"operator": "NOT", "conditions": [{"from": "spam"}]})
+    )
+    assert "NOT" in result and "spam" in result
+
+
+def test_filter_compound_unknown_operator_raises() -> None:
+    with pytest.raises(ValueError, match="unknown"):
+        jmap_filter_to_imap({"operator": "XOR", "conditions": []})
+
+
+def test_filter_compound_nested() -> None:
+    result = str(
+        jmap_filter_to_imap(
+            {
+                "operator": "AND",
+                "conditions": [
+                    {"from": "alice"},
+                    {
+                        "operator": "OR",
+                        "conditions": [{"subject": "hi"}, {"subject": "hello"}],
+                    },
+                ],
+            }
+        )
+    )
+    assert "FROM" in result and "SUBJECT" in result
+    assert "alice" in result and "hi" in result and "hello" in result
 
 
 def test_sort_received_at_descending() -> None:

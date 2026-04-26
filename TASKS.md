@@ -33,7 +33,7 @@
 
 - [ ] IMAP connection keepalive and reconnection
 - [ ] `Email/changes` (if CONDSTORE available)
-- [ ] Compound filters (AND/OR/NOT)
+- [x] Compound filters (AND/OR/NOT)
 - [ ] SORT support (if server advertises it)
 - [ ] Attachment blob download endpoint
 - [ ] Structured logging

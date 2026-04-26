@@ -3,7 +3,7 @@
 import datetime
 from typing import Any
 
-from imap_tools import AND
+from imap_tools import AND, NOT, OR
 
 # IMAP SORT criteria names for known JMAP sort properties
 _SORT_MAP: dict[str, str] = {
@@ -23,19 +23,36 @@ _KEYWORD_FLAG_MAP: dict[str, str] = {
 }
 
 
-def jmap_filter_to_imap(filter_cond: dict[str, Any]) -> AND:
-    """Translate a flat JMAP EmailFilterCondition dict to an imap_tools AND criterion.
+def jmap_filter_to_imap(filter_cond: dict[str, Any]) -> Any:
+    """Translate a JMAP EmailFilterCondition dict to an imap_tools criterion.
 
-    Compound operators ({"operator": "AND/OR/NOT", "conditions": [...]}) are NOT
-    supported in Phase 1 — raises ValueError if encountered.
+    Supports compound operators per RFC 8621 §4.4.1::
 
-    Returns AND(all=True) for an empty filter or when only inMailbox is specified
-    (folder selection is handled externally via mb.folder.set()).
+        {"operator": "AND" | "OR" | "NOT", "conditions": [<filter>, ...]}
+
+    Returns AND(all=True) for an empty filter or when only inMailbox is
+    specified (folder selection is handled externally via mb.folder.set()).
     """
-    if "operator" in filter_cond:
-        raise ValueError(
-            "compound filter operators (AND/OR/NOT) are not supported in Phase 1"
-        )
+    operator = filter_cond.get("operator")
+    if operator is not None:
+        conditions = filter_cond.get("conditions") or []
+        sub = [jmap_filter_to_imap(c) for c in conditions]
+        if operator == "AND":
+            if not sub:
+                return AND(all=True)
+            return AND(*sub)
+        if operator == "OR":
+            if not sub:
+                return AND(all=True)
+            if len(sub) == 1:
+                return sub[0]
+            return OR(*sub)
+        if operator == "NOT":
+            if not sub:
+                return AND(all=True)
+            inner = sub[0] if len(sub) == 1 else OR(*sub)
+            return NOT(inner)
+        raise ValueError(f"unknown filter operator: {operator!r}")
 
     kwargs: dict[str, Any] = {}
 
