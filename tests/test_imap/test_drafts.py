@@ -143,3 +143,21 @@ def test_email_set_create_uses_account_drafts_folder_and_username() -> None:
 
     assert mock_compose.call_args.kwargs["from_address"] == "work@example.com"
     assert mock_append.call_args.args[1] == "Work/Drafts"
+
+
+def test_compose_draft_reply_threading_headers() -> None:
+    result = compose_draft(
+        {
+            "from": [{"email": "a@b.com"}],
+            "to": [{"email": "c@d.com"}],
+            "subject": "Re: Hi",
+            "inReplyTo": ["abc@host"],
+            "references": ["root@host", "abc@host"],
+            "textBody": [{"partId": "1", "type": "text/plain"}],
+            "bodyValues": {"1": {"value": "Body"}},
+        },
+        from_address="a@b.com",
+    )
+    msg = email.message_from_bytes(result)
+    assert msg["In-Reply-To"] == "<abc@host>"
+    assert msg["References"] == "<root@host> <abc@host>"

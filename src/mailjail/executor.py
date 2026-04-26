@@ -14,6 +14,7 @@ from .models.email import handle_email_get, handle_email_query
 from .models.email_set import handle_email_set
 from .models.mailbox import handle_mailbox_get
 from .models.submission import handle_email_submission_set
+from .models.thread import handle_thread_get
 from .policy import (
     ALLOWED_METHODS,
     BLOCKED_METHODS,
@@ -160,6 +161,8 @@ class Executor:
                 name, result = handle_email_query(args, pool)
             elif method == "Email/get":
                 name, result = handle_email_get(args, pool)
+            elif method == "Thread/get":
+                name, result = handle_thread_get(args, pool)
             elif method == "Email/set":
                 violations = check_email_set(args)
                 if violations:

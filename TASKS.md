@@ -35,14 +35,14 @@
 - [ ] `Email/changes` (if CONDSTORE available)
 - [x] Compound filters (AND/OR/NOT)
 - [x] SORT support (if server advertises it)
-- [ ] Attachment blob download endpoint
+- [x] Attachment blob download endpoint
 - [x] Structured logging
 
 ## Phase 4 — Polish
 
 - [ ] README with setup instructions
-- [ ] Draft reply helper (auto-populate In-Reply-To, References, quoted text)
-- [ ] Thread view
+- [x] Draft reply helper (auto-populate In-Reply-To, References, quoted text)
+- [x] Thread view
 - [x] HTML body → plain text for agent consumption
 
 ## Phase 5 — Multi-account support

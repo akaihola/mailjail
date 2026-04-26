@@ -4,15 +4,73 @@ import json
 import logging
 from typing import Any, Callable
 
+from imap_tools import AND
 from pydantic import ValidationError
 
 from .config import Settings
 from .executor import Executor
+from .imap.fetch import parse_attachment_blob_id
 from .models.core import JMAPErrorType, JMAPRequest, make_error_invocation
 from .registry import AccountRegistry
 from .session import session_resource
 
 logger = logging.getLogger(__name__)
+
+
+def _download_attachment(
+    registry: AccountRegistry,
+    account_id: str,
+    blob_id: str,
+    filename: str,
+    start_response: Callable,
+) -> list[bytes]:
+    """Stream a single attachment payload as a binary response.
+
+    Path: ``GET /jmap/download/{accountId}/{blobId}/{filename}``. Returns
+    ``application/octet-stream`` with the raw bytes; ``filename`` is purely
+    cosmetic for the user agent.
+    """
+    try:
+        ctx = registry.get(account_id)
+    except KeyError:
+        return _json_response(
+            start_response,
+            "404 Not Found",
+            {"type": "accountNotFound", "description": account_id},
+        )
+    try:
+        folder, uid, idx = parse_attachment_blob_id(blob_id)
+    except ValueError as exc:
+        return _json_response(
+            start_response, "400 Bad Request", {"type": "invalidArguments",
+                                                 "description": str(exc)}
+        )
+    payload: bytes | None = None
+    content_type = "application/octet-stream"
+    with ctx.pool.connection() as mb:
+        mb.folder.set(folder)
+        for msg in mb.fetch(AND(uid=[uid]), mark_seen=False, bulk=True):
+            attachments = list(msg.attachments or [])
+            if 0 <= idx < len(attachments):
+                att = attachments[idx]
+                payload = getattr(att, "payload", None) or b""
+                content_type = (
+                    getattr(att, "content_type", None) or "application/octet-stream"
+                )
+            break
+    if payload is None:
+        return _json_response(
+            start_response,
+            "404 Not Found",
+            {"type": "blobNotFound", "description": blob_id},
+        )
+    headers = [
+        ("Content-Type", content_type),
+        ("Content-Length", str(len(payload))),
+        ("Content-Disposition", f'attachment; filename="{filename}"'),
+    ]
+    start_response("200 OK", headers)
+    return [payload]
 
 
 def _json_response(
@@ -79,6 +137,22 @@ def make_app(
 
         if method == "GET" and path == "/.well-known/jmap":
             return _json_response(start_response, "200 OK", session_resource(settings))
+
+        if method == "GET" and path.startswith("/jmap/download/"):
+            parts = path[len("/jmap/download/") :].split("/", 2)
+            if len(parts) == 3 and all(parts):
+                account_id, blob_id, filename = parts
+                return _download_attachment(
+                    registry, account_id, blob_id, filename, start_response
+                )
+            return _json_response(
+                start_response,
+                "400 Bad Request",
+                {
+                    "type": "invalidArguments",
+                    "description": "expected /jmap/download/{accountId}/{blobId}/{name}",
+                },
+            )
 
         if method == "GET" and path == "/healthz":
             primary_ok, body = _healthz_body(registry, settings.primary_account)

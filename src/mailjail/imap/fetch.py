@@ -23,6 +23,21 @@ def folder_uid_to_email_id(folder: str, uid: str) -> str:
     return f"{folder}:{uid}"
 
 
+def attachment_blob_id(folder: str, uid: str, part_index: int) -> str:
+    """Stable blobId for an attachment part: 'INBOX:42:0'."""
+    return f"{folder}:{uid}:{part_index}"
+
+
+def parse_attachment_blob_id(blob_id: str) -> tuple[str, str, int]:
+    """Reverse of attachment_blob_id. Raises ValueError on bad format."""
+    parts = blob_id.split(":")
+    if len(parts) != 3 or not all(parts):
+        raise ValueError(
+            f"Invalid attachment blobId: {blob_id!r} — expected 'FOLDER:UID:INDEX'"
+        )
+    return parts[0], parts[1], int(parts[2])
+
+
 _TAG_RE = re.compile(r"<[^>]+>")
 _STYLE_OR_SCRIPT_RE = re.compile(
     r"<(script|style)\b[^>]*>.*?</\1\s*>", re.IGNORECASE | re.DOTALL
@@ -104,10 +119,25 @@ def imap_message_to_jmap_email(
     email_id = folder_uid_to_email_id(folder, msg.uid)
 
     # Build full property map
+    headers_dict = msg.headers or {}
+
+    def _header_message_ids(name: str) -> list[str]:
+        values = headers_dict.get(name) or headers_dict.get(name.lower()) or []
+        out: list[str] = []
+        for v in values:
+            for token in v.split():
+                stripped = token.strip("<> \t")
+                if stripped:
+                    out.append(stripped)
+        return out
+
     full: dict[str, Any] = {
         "id": email_id,
         "blobId": email_id,  # Phase 1 simplification
         "threadId": email_id,  # Phase 1 simplification — no thread grouping
+        "messageId": _header_message_ids("Message-ID"),
+        "inReplyTo": _header_message_ids("In-Reply-To"),
+        "references": _header_message_ids("References"),
         "mailboxIds": {folder: True},
         "keywords": imap_flags_to_jmap_keywords(msg.flags),
         "from": _address_list([msg.from_values] if msg.from_values is not None else []),
@@ -121,6 +151,16 @@ def imap_message_to_jmap_email(
         "size": msg.size_rfc822,
         "preview": make_preview(msg.text or html_to_text(msg.html or "")),
         "hasAttachment": bool(msg.attachments),
+        "attachments": [
+            {
+                "blobId": attachment_blob_id(folder, msg.uid, idx),
+                "name": getattr(att, "filename", "") or "",
+                "type": getattr(att, "content_type", "") or "application/octet-stream",
+                "size": len(getattr(att, "payload", b"") or b""),
+                "disposition": getattr(att, "content_disposition", "") or "attachment",
+            }
+            for idx, att in enumerate(msg.attachments or [])
+        ],
         "headers": [
             {"name": k, "value": v} for k, vs in (msg.headers or {}).items() for v in vs
         ],

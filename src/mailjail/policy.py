@@ -12,6 +12,7 @@ ALLOWED_METHODS: frozenset[str] = frozenset(
         "Email/query",
         "Email/get",
         "Email/changes",  # Phase 2
+        "Thread/get",
     }
 )
 
@@ -38,7 +39,6 @@ BLOCKED_METHODS: frozenset[str] = frozenset(
         "VacationResponse/set",
         "Mailbox/set",  # no folder create/delete/rename
         "Mailbox/changes",
-        "Thread/get",  # Phase 2 maybe
         "Thread/changes",
     }
 )

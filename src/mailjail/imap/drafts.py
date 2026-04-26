@@ -14,6 +14,14 @@ from .fetch import folder_uid_to_email_id
 logger = logging.getLogger(__name__)
 
 
+def _format_message_id(mid: str) -> str:
+    """Wrap a bare JMAP message-id in angle brackets for RFC 5322 headers."""
+    mid = mid.strip()
+    if mid.startswith("<") and mid.endswith(">"):
+        return mid
+    return f"<{mid}>"
+
+
 def _format_address(addr: dict[str, Any]) -> str:
     """Format an address dict {'name': ..., 'email': ...} as an RFC 2822 address."""
     name = addr.get("name", "")
@@ -58,7 +66,17 @@ def compose_draft(
     # MIME-Version is set automatically by EmailMessage with SMTP policy
     msg["MIME-Version"] = "1.0"
 
-    # Extra headers (e.g. In-Reply-To, References)
+    # Reply threading: JMAP exposes ``inReplyTo`` / ``references`` (RFC 8621
+    # §4.1.4) as lists of bare message-ids without angle brackets. Convert to
+    # the angle-bracket form RFC 5322 expects for In-Reply-To / References.
+    in_reply_to = create_obj.get("inReplyTo") or []
+    references = create_obj.get("references") or []
+    if in_reply_to:
+        msg["In-Reply-To"] = " ".join(_format_message_id(mid) for mid in in_reply_to)
+    if references:
+        msg["References"] = " ".join(_format_message_id(mid) for mid in references)
+
+    # Extra headers (e.g. explicit In-Reply-To, References, Message-ID overrides)
     for header in create_obj.get("headers", []):
         name = header.get("name", "")
         value = header.get("value", "")
