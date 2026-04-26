@@ -114,6 +114,50 @@ def handle_email_query(
     )
 
 
+def handle_email_changes(
+    args: dict[str, Any],
+    pool: IMAPPool,  # noqa: ARG001 — handler is intentionally state-less
+) -> tuple[str, dict[str, Any]]:
+    """Email/changes — always reports the cache as invalid.
+
+    The proxy does not maintain CONDSTORE/MODSEQ state. Per RFC 8620 §5.2,
+    when the server cannot compute the delta from ``sinceState`` it returns
+    a ``cannotCalculateChanges`` error in the response. Clients that see
+    this fall back to a fresh ``Email/query`` — which is the only correct
+    behaviour we can offer without persistent per-account state.
+
+    The state is always reported as ``"0"`` so a client whose cached state
+    happens to equal ``"0"`` gets an empty (no-changes) response without
+    needing to refetch.
+    """
+    account_id = args["accountId"]
+    since_state = args.get("sinceState")
+    if since_state == "0":
+        return (
+            "Email/changes",
+            {
+                "accountId": account_id,
+                "oldState": "0",
+                "newState": "0",
+                "hasMoreChanges": False,
+                "created": [],
+                "updated": [],
+                "destroyed": [],
+            },
+        )
+    # Signal "you must refetch with Email/query".
+    return (
+        "error",
+        {
+            "type": "cannotCalculateChanges",
+            "description": (
+                "mailjail does not track per-message MODSEQ; "
+                "re-issue Email/query for fresh results"
+            ),
+        },
+    )
+
+
 def handle_email_get(
     args: dict[str, Any],
     pool: IMAPPool,

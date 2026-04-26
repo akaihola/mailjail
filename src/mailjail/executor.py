@@ -10,7 +10,7 @@ from .models.core import (
     JMAPResponse,
     make_error_invocation,
 )
-from .models.email import handle_email_get, handle_email_query
+from .models.email import handle_email_changes, handle_email_get, handle_email_query
 from .models.email_set import handle_email_set
 from .models.mailbox import handle_mailbox_get
 from .models.submission import handle_email_submission_set
@@ -161,6 +161,8 @@ class Executor:
                 name, result = handle_email_query(args, pool)
             elif method == "Email/get":
                 name, result = handle_email_get(args, pool)
+            elif method == "Email/changes":
+                name, result = handle_email_changes(args, pool)
             elif method == "Thread/get":
                 name, result = handle_thread_get(args, pool)
             elif method == "Email/set":

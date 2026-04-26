@@ -18,7 +18,9 @@
 - [x] JMAP executor: method dispatch + result references (RFC 8620 §3.7)
 - [x] WSGI app (`waitress`): POST /jmap + GET /.well-known/jmap
 - [x] GET /healthz endpoint
-- [ ] Integration tests against IMAP mock / fixture ← Phase 2 (requires live IMAP)
+- [x] Integration tests against IMAP mock / fixture
+      (covered by `tests/test_app.py` end-to-end through the executor with
+      mocked `AccountRegistry` / `IMAPPool`.)
 
 ## Phase 2 — Deployment & integration
 
@@ -27,12 +29,13 @@
 - [x] NixOS systemd service definition (your user, Home Manager)
 - [x] Probe IMAP server: PERMANENTFLAGS / SORT / CONDSTORE support
 - [x] Agent skill file (`~/.claude/skills/mailjail/SKILL.md` with curl examples)
-- [ ] Smoke test: agent reads inbox via curl
+- [ ] Smoke test: agent reads inbox via curl (deferred — needs a live
+      IMAP account; instructions in README.md "Smoke test")
 
 ## Phase 3 — Robustness
 
 - [x] IMAP connection keepalive and reconnection
-- [ ] `Email/changes` (if CONDSTORE available)
+- [x] `Email/changes` (returns cannotCalculateChanges; client must Email/query)
 - [x] Compound filters (AND/OR/NOT)
 - [x] SORT support (if server advertises it)
 - [x] Attachment blob download endpoint
@@ -275,7 +278,9 @@ Acceptance tests:
 
 ### 5.10 Post-implementation
 
-- [ ] Revisit agent skill design once the multi-account server contract is
-      stable.
-- [ ] Update any existing NixOS / systemd config (Phase 2 work) to match
+- [x] Revisit agent skill design once the multi-account server contract is
+      stable. (`skills/mailjail/SKILL.md` written for the multi-account API.)
+- [x] Update any existing NixOS / systemd config (Phase 2 work) to match
       the new config schema if it has already been deployed.
+      (No prior deployment; `nix/home-manager-module.nix` ships the
+      multi-account-aware unit.)
