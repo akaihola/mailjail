@@ -28,11 +28,13 @@ mailbox. mailjail puts a small, audit-friendly gate in between:
 ```sh
 git clone https://github.com/akaihola/mailjail
 cd mailjail
-uv sync
+uv sync                            # core install
+uv sync --extra thunderbird        # add NSS decryption for Thunderbird auth
 ```
 
 Python 3.12+ is required. Runtime dependencies: `imap_tools`, `waitress`,
-`pydantic` (declared in [pyproject.toml](pyproject.toml)).
+`pydantic` (declared in [pyproject.toml](pyproject.toml)). The optional
+`thunderbird` extra adds `cryptography>=43.0` for in-process NSS decryption.
 
 ## Configure
 
@@ -67,7 +69,8 @@ pool_size = 2
 ```
 
 Per-account credentials can come from a password file, a himalaya keyring
-account, or a Thunderbird profile — see [DESIGN.md §9][design]. Per-account
+account, or a Thunderbird profile (in-process NSS decryption — install
+with `--extra thunderbird`). See [DESIGN.md §9][design]. Per-account
 environment-variable overrides are intentionally **not** supported; the
 only env vars honoured are `MAILJAIL_SERVER_HOST` and
 `MAILJAIL_SERVER_PORT`.
