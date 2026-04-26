@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import binascii
 import json
 import os
+import sqlite3
 import subprocess
 import tomllib
 from configparser import ConfigParser
@@ -289,7 +291,7 @@ def _apply_thunderbird_credentials(data: dict[str, Any]) -> None:
             key4_db=login.key4_db,
             encrypted_password=login.encrypted_password,
         )
-    except Exception as exc:
+    except (ValueError, sqlite3.DatabaseError, binascii.Error) as exc:
         raise CredentialError(
             f"Thunderbird decryption failed: {exc}"
         ) from exc
