@@ -195,6 +195,21 @@ def synthetic_profile(tmp_path: Path) -> Path:
     return synthetic_profile_factory(tmp_path)
 
 
+def _load_matching_login(logins_json: Path, origin: str) -> dict[str, object]:
+    """Test-only lookup of a Thunderbird login entry by exact origin match.
+
+    Production uses the hint-based filter in `config.read_thunderbird_login`;
+    this naive equality lookup is just scaffolding for the synthetic fixture.
+    """
+    with open(logins_json, encoding="utf-8") as f:
+        payload = json.load(f)
+    for entry in payload.get("logins", []):
+        if entry.get("hostname") == origin:
+            return entry
+    msg = f"No Thunderbird login found for origin: {origin}"
+    raise ValueError(msg)
+
+
 # ---------------------------------------------------------------------------
 # End-to-end tests using synthetic profile
 # ---------------------------------------------------------------------------
@@ -210,7 +225,7 @@ class TestFullDecryptionFlow:
         key4_db = synthetic_profile / "key4.db"
         logins_json = synthetic_profile / "logins.json"
         profile_key = thunderbird._unwrap_profile_key(key4_db)
-        login = thunderbird.load_matching_login(logins_json, "imap://mail.example.com")
+        login = _load_matching_login(logins_json, "imap://mail.example.com")
         encrypted = login["encryptedPassword"]
         assert isinstance(encrypted, str)
         decrypted = thunderbird._decrypt_login_blob(encrypted, profile_key)
@@ -220,7 +235,7 @@ class TestFullDecryptionFlow:
         key4_db = synthetic_profile / "key4.db"
         logins_json = synthetic_profile / "logins.json"
         profile_key = thunderbird._unwrap_profile_key(key4_db)
-        login = thunderbird.load_matching_login(logins_json, "imap://mail.example.com")
+        login = _load_matching_login(logins_json, "imap://mail.example.com")
         encrypted = login["encryptedUsername"]
         assert isinstance(encrypted, str)
         decrypted = thunderbird._decrypt_login_blob(encrypted, profile_key)
@@ -228,7 +243,7 @@ class TestFullDecryptionFlow:
 
     def test_decrypt_login_end_to_end(self, synthetic_profile: Path) -> None:
         logins_json = synthetic_profile / "logins.json"
-        login = thunderbird.load_matching_login(logins_json, "imap://mail.example.com")
+        login = _load_matching_login(logins_json, "imap://mail.example.com")
         encrypted = login.get("encryptedPassword")
         assert isinstance(encrypted, str)
         result = thunderbird.decrypt_login(

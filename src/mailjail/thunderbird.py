@@ -8,7 +8,6 @@ from __future__ import annotations
 import base64
 import hashlib
 import hmac as hmac_mod
-import json
 import sqlite3
 from pathlib import Path
 
@@ -280,21 +279,6 @@ def _unwrap_profile_key(key4_db: Path, master_password: str = "") -> bytes:
     # Unwrap the profile key
     wrapped = _read_nss_private_key(key4_db)
     return _nss_decrypt(global_salt, master_password, wrapped)
-
-
-# ---------------------------------------------------------------------------
-# Login lookup
-# ---------------------------------------------------------------------------
-
-
-def load_matching_login(logins_json: Path, origin: str) -> dict[str, object]:
-    with open(logins_json, encoding="utf-8") as f:
-        payload = json.load(f)
-    for entry in payload.get("logins", []):
-        if entry.get("hostname") == origin:
-            return entry
-    msg = f"No Thunderbird login found for origin: {origin}"
-    raise ValueError(msg)
 
 
 # ---------------------------------------------------------------------------

@@ -209,6 +209,13 @@ def _build_account(account_id: str, section: dict[str, Any]) -> AccountSettings:
             f"[accounts.{account_id}.pool]: {sorted(extra_pool)}"
         )
 
+    if "thunderbird_helper_cmd" in auth_section:
+        raise ConfigError(
+            f"Account {account_id!r}: `thunderbird_helper_cmd` is no longer "
+            "supported — Thunderbird decryption is now in-process. Remove the "
+            "key and install with `pip install 'mailjail[thunderbird]'`."
+        )
+
     known_auth_keys = set(_ACCOUNT_AUTH_TOML_FIELDS)
     extra_auth = set(auth_section) - known_auth_keys
     if extra_auth:
@@ -266,6 +273,14 @@ def _apply_himalaya_credentials(data: dict[str, Any]) -> None:
 
 
 def _apply_thunderbird_credentials(data: dict[str, Any]) -> None:
+    try:
+        from mailjail.thunderbird import decrypt_login
+    except ImportError as exc:
+        raise CredentialError(
+            "Thunderbird credential provider requires the 'cryptography' "
+            "package. Install with: pip install 'mailjail[thunderbird]'"
+        ) from exc
+
     thunderbird_dir = Path(data.get("thunderbird_dir", str(DEFAULT_THUNDERBIRD_DIR)))
     profile_name = data.get("thunderbird_profile")
     username_hint = data.get("thunderbird_username_hint") or data.get("imap_username")
@@ -277,14 +292,6 @@ def _apply_thunderbird_credentials(data: dict[str, Any]) -> None:
         username_hint=username_hint,
         hostname_hint=hostname_hint,
     )
-
-    try:
-        from mailjail.thunderbird import decrypt_login
-    except ImportError as exc:
-        raise CredentialError(
-            "Thunderbird credential provider requires the 'cryptography' "
-            "package. Install with: pip install 'mailjail[thunderbird]'"
-        ) from exc
 
     try:
         password = decrypt_login(

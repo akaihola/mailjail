@@ -252,7 +252,9 @@ provider = "mailjail"
 thunderbird_helper_cmd = "/old/script"
 '''
     )
-    with pytest.raises(ConfigError, match="thunderbird_helper_cmd"):
+    with pytest.raises(
+        ConfigError, match=r"thunderbird_helper_cmd.*no longer supported"
+    ):
         load_settings(config_path)
 
 
