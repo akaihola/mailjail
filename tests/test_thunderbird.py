@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 from cryptography.hazmat.decrepit.ciphers.algorithms import TripleDES
 from cryptography.hazmat.primitives import padding
-from cryptography.hazmat.primitives.ciphers import Cipher, modes
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
 from mailjail import thunderbird
 
@@ -80,6 +80,12 @@ def _encrypt_3des_cbc(key: bytes, iv: bytes, plaintext: bytes) -> bytes:
     return enc.update(padded) + enc.finalize()
 
 
+def _encrypt_aes_cbc(key: bytes, iv: bytes, plaintext: bytes) -> bytes:
+    padded = _pad_pkcs7(plaintext, 16)
+    enc = Cipher(algorithms.AES(key), modes.CBC(iv)).encryptor()
+    return enc.update(padded) + enc.finalize()
+
+
 def _nss_legacy_key_iv(
     global_salt: bytes, master_password: str, entry_salt: bytes,
 ) -> tuple[bytes, bytes]:
@@ -128,18 +134,41 @@ def _build_login_blob_b64(
     return base64.b64encode(blob).decode("ascii")
 
 
+def _build_aes_login_blob_b64(
+    key_id: bytes, iv: bytes, aes_key: bytes, plaintext: bytes,
+) -> str:
+    """Build a base64-encoded DER login blob (AES-256-CBC)."""
+    ciphertext = _encrypt_aes_cbc(aes_key[:32], iv, plaintext)
+    blob = _der_sequence(
+        _der_octet_string(key_id),
+        _der_sequence(
+            _der_oid("2.16.840.1.101.3.4.1.42"),  # aes256-CBC
+            _der_octet_string(iv),
+        ),
+        _der_octet_string(ciphertext),
+    )
+    return base64.b64encode(blob).decode("ascii")
+
+
 # ---------------------------------------------------------------------------
 # Synthetic Thunderbird profile fixture
 # ---------------------------------------------------------------------------
 
 GLOBAL_SALT = b"\x01" * 20
 ENTRY_SALT_CHECK = b"\x02" * 20
-ENTRY_SALT_KEY = b"\x03" * 20
-PROFILE_KEY = b"\xaa" * 24  # 24-byte 3DES key
+ENTRY_SALT_KEY_DES3 = b"\x03" * 20
+ENTRY_SALT_KEY_AES = b"\x04" * 20
+PROFILE_KEY_DES3 = b"\xaa" * 24  # 24-byte 3DES key
+PROFILE_KEY_AES = b"\xbb" * 32  # 32-byte AES-256 key
 KEY_ID = b"\xf8" + b"\x00" * 14 + b"\x01"
-LOGIN_IV = b"\x55" * 8
+LOGIN_IV_DES3 = b"\x55" * 8
+LOGIN_IV_AES = b"\x66" * 16
 LOGIN_PASSWORD = "my-secret-imap-password"
+AES_LOGIN_PASSWORD = "another-secret-aes-password"
 MASTER_PASSWORD = ""
+
+CKK_DES3 = b"\x00\x00\x00\x15"
+CKK_AES = b"\x00\x00\x00\x1f"
 
 
 def synthetic_profile_factory(tmp_path: Path) -> Path:
@@ -152,17 +181,24 @@ def synthetic_profile_factory(tmp_path: Path) -> Path:
         GLOBAL_SALT, MASTER_PASSWORD, ENTRY_SALT_CHECK, b"password-check",
     )
 
-    # Encrypt the profile key for the nssPrivate table
-    a11 = _nss_legacy_encrypt(
-        GLOBAL_SALT, MASTER_PASSWORD, ENTRY_SALT_KEY, PROFILE_KEY,
+    # Encrypt both profile keys for the nssPrivate table
+    a11_des3 = _nss_legacy_encrypt(
+        GLOBAL_SALT, MASTER_PASSWORD, ENTRY_SALT_KEY_DES3, PROFILE_KEY_DES3,
+    )
+    a11_aes = _nss_legacy_encrypt(
+        GLOBAL_SALT, MASTER_PASSWORD, ENTRY_SALT_KEY_AES, PROFILE_KEY_AES,
     )
 
-    # Build login blobs
+    # Build login blobs (3DES path)
     encrypted_password = _build_login_blob_b64(
-        KEY_ID, LOGIN_IV, PROFILE_KEY, LOGIN_PASSWORD.encode("utf-8"),
+        KEY_ID, LOGIN_IV_DES3, PROFILE_KEY_DES3, LOGIN_PASSWORD.encode("utf-8"),
     )
     encrypted_username = _build_login_blob_b64(
-        KEY_ID, LOGIN_IV, PROFILE_KEY, b"user@example.com",
+        KEY_ID, LOGIN_IV_DES3, PROFILE_KEY_DES3, b"user@example.com",
+    )
+    # AES-256 login (modern Thunderbird path)
+    encrypted_aes_password = _build_aes_login_blob_b64(
+        KEY_ID, LOGIN_IV_AES, PROFILE_KEY_AES, AES_LOGIN_PASSWORD.encode("utf-8"),
     )
 
     # Create key4.db
@@ -173,17 +209,29 @@ def synthetic_profile_factory(tmp_path: Path) -> Path:
             "INSERT INTO metadata VALUES (?, ?, ?)",
             ("password", GLOBAL_SALT, item2),
         )
-        conn.execute("CREATE TABLE nssPrivate (a11 BLOB, a102 BLOB)")
-        conn.execute("INSERT INTO nssPrivate VALUES (?, ?)", (a11, KEY_ID))
+        conn.execute("CREATE TABLE nssPrivate (a11 BLOB, a100 BLOB, a102 BLOB)")
+        conn.execute(
+            "INSERT INTO nssPrivate VALUES (?, ?, ?)", (a11_des3, CKK_DES3, KEY_ID),
+        )
+        conn.execute(
+            "INSERT INTO nssPrivate VALUES (?, ?, ?)", (a11_aes, CKK_AES, KEY_ID),
+        )
 
     # Create logins.json
     logins_json = profile / "logins.json"
     logins_json.write_text(json.dumps({
-        "logins": [{
-            "hostname": "imap://mail.example.com",
-            "encryptedUsername": encrypted_username,
-            "encryptedPassword": encrypted_password,
-        }],
+        "logins": [
+            {
+                "hostname": "imap://mail.example.com",
+                "encryptedUsername": encrypted_username,
+                "encryptedPassword": encrypted_password,
+            },
+            {
+                "hostname": "imap://aes.example.com",
+                "encryptedUsername": encrypted_username,
+                "encryptedPassword": encrypted_aes_password,
+            },
+        ],
     }))
 
     return profile
@@ -216,29 +264,32 @@ def _load_matching_login(logins_json: Path, origin: str) -> dict[str, object]:
 
 
 class TestFullDecryptionFlow:
-    def test_unwrap_profile_key(self, synthetic_profile: Path) -> None:
+    def test_unwrap_profile_keys(self, synthetic_profile: Path) -> None:
         key4_db = synthetic_profile / "key4.db"
-        profile_key = thunderbird._unwrap_profile_key(key4_db)
-        assert profile_key == PROFILE_KEY
+        profile_keys = thunderbird._unwrap_profile_keys(key4_db)
+        assert profile_keys == {
+            0x15: PROFILE_KEY_DES3,
+            0x1F: PROFILE_KEY_AES,
+        }
 
     def test_decrypt_login_password(self, synthetic_profile: Path) -> None:
         key4_db = synthetic_profile / "key4.db"
         logins_json = synthetic_profile / "logins.json"
-        profile_key = thunderbird._unwrap_profile_key(key4_db)
+        profile_keys = thunderbird._unwrap_profile_keys(key4_db)
         login = _load_matching_login(logins_json, "imap://mail.example.com")
         encrypted = login["encryptedPassword"]
         assert isinstance(encrypted, str)
-        decrypted = thunderbird._decrypt_login_blob(encrypted, profile_key)
+        decrypted = thunderbird._decrypt_login_blob(encrypted, profile_keys)
         assert decrypted == LOGIN_PASSWORD
 
     def test_decrypt_login_username(self, synthetic_profile: Path) -> None:
         key4_db = synthetic_profile / "key4.db"
         logins_json = synthetic_profile / "logins.json"
-        profile_key = thunderbird._unwrap_profile_key(key4_db)
+        profile_keys = thunderbird._unwrap_profile_keys(key4_db)
         login = _load_matching_login(logins_json, "imap://mail.example.com")
         encrypted = login["encryptedUsername"]
         assert isinstance(encrypted, str)
-        decrypted = thunderbird._decrypt_login_blob(encrypted, profile_key)
+        decrypted = thunderbird._decrypt_login_blob(encrypted, profile_keys)
         assert decrypted == "user@example.com"
 
     def test_decrypt_login_end_to_end(self, synthetic_profile: Path) -> None:
@@ -252,6 +303,24 @@ class TestFullDecryptionFlow:
         )
         assert result == LOGIN_PASSWORD
 
+    def test_decrypt_aes_login_end_to_end(self, synthetic_profile: Path) -> None:
+        """Regression: profile has both DES3 and AES keys; AES login picks AES.
+
+        Before the multi-key fix, the code took the first nssPrivate row
+        unconditionally (the 3DES key), which produced "Invalid padding bytes"
+        when the login blob was AES-256 — exactly the failure mode seen on
+        modern Thunderbird profiles that carry both key types.
+        """
+        logins_json = synthetic_profile / "logins.json"
+        login = _load_matching_login(logins_json, "imap://aes.example.com")
+        encrypted = login.get("encryptedPassword")
+        assert isinstance(encrypted, str)
+        result = thunderbird.decrypt_login(
+            key4_db=synthetic_profile / "key4.db",
+            encrypted_password=encrypted,
+        )
+        assert result == AES_LOGIN_PASSWORD
+
 
 # ---------------------------------------------------------------------------
 # Unit-level rejection tests
@@ -261,12 +330,12 @@ class TestFullDecryptionFlow:
 class TestRejections:
     def test_invalid_base64_blob(self) -> None:
         with pytest.raises(Exception):
-            thunderbird._decrypt_login_blob("not-base64!!!", b"\x00" * 24)
+            thunderbird._decrypt_login_blob("not-base64!!!", {0x15: b"\x00" * 24})
 
     def test_non_sequence_blob(self) -> None:
         payload = base64.b64encode(b"\x04\x03abc").decode("ascii")
         with pytest.raises(ValueError, match="primitive"):
-            thunderbird._decrypt_login_blob(payload, b"\x00" * 24)
+            thunderbird._decrypt_login_blob(payload, {0x15: b"\x00" * 24})
 
     def test_missing_encrypted_password(self) -> None:
         with pytest.raises(ValueError, match="missing encrypted password"):

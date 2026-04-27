@@ -121,6 +121,14 @@ OID_PBES2 = "1.2.840.113549.1.5.13"
 OID_DES_EDE3_CBC = "1.2.840.113549.3.7"
 OID_AES_256_CBC = "2.16.840.1.101.3.4.1.42"
 
+# Maps login-blob OID → CKA_KEY_TYPE value stored in nssPrivate.a100
+_CKK_DES3 = 0x15
+_CKK_AES = 0x1F
+_OID_TO_CKK: dict[str, int] = {
+    OID_DES_EDE3_CBC: _CKK_DES3,
+    OID_AES_256_CBC: _CKK_AES,
+}
+
 
 def _nss_decrypt(global_salt: bytes, master_password: str, blob: bytes) -> bytes:
     """Decrypt an NSS PBE-encrypted blob (from key4.db metadata or nssPrivate)."""
@@ -204,7 +212,7 @@ def _nss_modern_decrypt(
 # ---------------------------------------------------------------------------
 
 
-def _decrypt_login_blob(encrypted_b64: str, profile_key: bytes) -> str:
+def _decrypt_login_blob(encrypted_b64: str, profile_keys: dict[int, bytes]) -> str:
     """Decrypt a base64-encoded login blob from logins.json.
 
     The blob structure (DER):
@@ -226,13 +234,18 @@ def _decrypt_login_blob(encrypted_b64: str, profile_key: bytes) -> str:
     iv = algo_seq[1].data
     ciphertext = children[2].data
 
-    if oid == OID_DES_EDE3_CBC:
-        plaintext = _decrypt_3des_cbc(profile_key[:24], iv, ciphertext)
-    elif oid == OID_AES_256_CBC:
-        plaintext = _decrypt_aes_cbc(profile_key[:32], iv, ciphertext)
-    else:
+    ckk = _OID_TO_CKK.get(oid)
+    if ckk is None:
         msg = f"Unsupported login encryption OID: {oid}"
         raise ValueError(msg)
+    key = profile_keys.get(ckk)
+    if key is None:
+        msg = f"key4.db has no key for CKA_KEY_TYPE 0x{ckk:02x} (OID {oid})"
+        raise ValueError(msg)
+    if oid == OID_DES_EDE3_CBC:
+        plaintext = _decrypt_3des_cbc(key[:24], iv, ciphertext)
+    else:
+        plaintext = _decrypt_aes_cbc(key[:32], iv, ciphertext)
 
     return plaintext.decode("utf-8")
 
@@ -257,17 +270,28 @@ def _read_key4_db_metadata(key4_db: Path) -> tuple[bytes, bytes]:
     return global_salt, item2
 
 
-def _read_nss_private_key(key4_db: Path) -> bytes:
+def _read_nss_private_keys(key4_db: Path) -> dict[int, bytes]:
+    """Return all encrypted key blobs from nssPrivate, keyed by CKA_KEY_TYPE."""
     with sqlite3.connect(str(key4_db)) as conn:
-        row = conn.execute("SELECT a11 FROM nssPrivate LIMIT 1").fetchone()
-    if row is None or not isinstance(row[0], bytes):
-        msg = "key4.db does not contain an NSS private key"
+        rows = conn.execute(
+            "SELECT a100, a11 FROM nssPrivate WHERE a11 IS NOT NULL",
+        ).fetchall()
+    if not rows:
+        msg = "key4.db does not contain any NSS secret keys"
         raise ValueError(msg)
-    return row[0]
+    result: dict[int, bytes] = {}
+    for a100, a11 in rows:
+        if isinstance(a100, bytes) and len(a100) == 4 and isinstance(a11, bytes):
+            key_type = int.from_bytes(a100, "big")
+            result[key_type] = a11
+    if not result:
+        msg = "key4.db nssPrivate rows have unexpected column types"
+        raise ValueError(msg)
+    return result
 
 
-def _unwrap_profile_key(key4_db: Path, master_password: str = "") -> bytes:
-    """Verify the master password and unwrap the profile decryption key."""
+def _unwrap_profile_keys(key4_db: Path, master_password: str = "") -> dict[int, bytes]:
+    """Verify the master password and unwrap all profile decryption keys."""
     global_salt, item2 = _read_key4_db_metadata(key4_db)
 
     # Verify master password (_nss_decrypt returns unpadded plaintext)
@@ -276,9 +300,11 @@ def _unwrap_profile_key(key4_db: Path, master_password: str = "") -> bytes:
         msg = "Master password incorrect or unsupported key4.db format"
         raise ValueError(msg)
 
-    # Unwrap the profile key
-    wrapped = _read_nss_private_key(key4_db)
-    return _nss_decrypt(global_salt, master_password, wrapped)
+    wrapped_keys = _read_nss_private_keys(key4_db)
+    return {
+        key_type: _nss_decrypt(global_salt, master_password, blob)
+        for key_type, blob in wrapped_keys.items()
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -295,5 +321,5 @@ def decrypt_login(
     if not encrypted_password:
         msg = "Login entry is missing encrypted password"
         raise ValueError(msg)
-    profile_key = _unwrap_profile_key(key4_db)
-    return _decrypt_login_blob(encrypted_password, profile_key)
+    profile_keys = _unwrap_profile_keys(key4_db)
+    return _decrypt_login_blob(encrypted_password, profile_keys)
