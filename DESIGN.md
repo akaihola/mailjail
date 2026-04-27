@@ -655,6 +655,8 @@ new schema.
 
 Thunderbird note: NSS decryption (the same scheme Firefox/Thunderbird use to protect `logins.json` with the master password) is implemented in-process in `mailjail.thunderbird`. The `cryptography` library is an *optional* extra so users on other providers (himalaya, password-file) don't pay the dependency cost. Earlier versions of mailjail shelled out to a separate `mailjail-thunderbird-password` helper script — that helper has been removed.
 
+The Thunderbird provider only handles password-style logins. Gmail accounts in Thunderbird are stored as OAuth2 refresh tokens (`oauth://accounts.google.com` in `logins.json`) and are not yet supported — see TASKS.md Phase 6 for the OAuth2 backlog item.
+
 ## 10. Deployment
 
 ### NixOS / Home Manager (your user)
