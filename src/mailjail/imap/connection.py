@@ -2,12 +2,28 @@
 
 import logging
 import queue
+import ssl as ssl_module
 from contextlib import contextmanager
 from typing import Generator
 
 from imap_tools import MailBox
 
 logger = logging.getLogger(__name__)
+
+
+def _make_insecure_ssl_context() -> ssl_module.SSLContext:
+    """Permissive TLS context for legacy mail servers.
+
+    Allows TLS 1.0+, enables SECLEVEL=0 ciphers (RSA-SHA1 etc.), and
+    skips hostname/cert verification. Opt-in per account via
+    ``imap_tls_insecure``; do not use against modern servers.
+    """
+    ctx = ssl_module.SSLContext(ssl_module.PROTOCOL_TLS_CLIENT)
+    ctx.minimum_version = ssl_module.TLSVersion.TLSv1
+    ctx.set_ciphers("DEFAULT:@SECLEVEL=0")
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl_module.CERT_NONE
+    return ctx
 
 
 class IMAPPool:
@@ -25,12 +41,17 @@ class IMAPPool:
         password: str,
         size: int = 3,
         ssl: bool = True,
+        tls_insecure: bool = False,
     ) -> None:
         self._host = host
         self._port = port
         self._username = username
         self._password = password
         self._ssl = ssl
+        self._tls_insecure = tls_insecure
+        self._ssl_context: ssl_module.SSLContext | None = (
+            _make_insecure_ssl_context() if tls_insecure else None
+        )
         self._pool: queue.Queue[MailBox] = queue.Queue(maxsize=size)
         self._capabilities: frozenset[str] = frozenset()
         for _ in range(size):
@@ -42,7 +63,9 @@ class IMAPPool:
         initial_folder=None avoids the implicit SELECT INBOX on login,
         which is important because we explicitly select folders before each operation.
         """
-        mb = MailBox(host=self._host, port=self._port)
+        mb = MailBox(
+            host=self._host, port=self._port, ssl_context=self._ssl_context
+        )
         mb.login(self._username, self._password, initial_folder=None)
         if not self._capabilities:
             try:

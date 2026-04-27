@@ -34,6 +34,7 @@ class AccountSettings(BaseModel):
     imap_host: str = "mail.example.com"
     imap_port: int = 993
     imap_ssl: bool = True
+    imap_tls_insecure: bool = False
     imap_username: str
     imap_password: str
     pool_size: int = 3
@@ -93,6 +94,7 @@ _ACCOUNT_TOML_FIELD_MAP = {
     "host": "imap_host",
     "port": "imap_port",
     "ssl": "imap_ssl",
+    "tls_insecure": "imap_tls_insecure",
     "username": "imap_username",
     "password": "imap_password",
     "drafts_folder": "drafts_folder",

@@ -30,6 +30,7 @@ def _default_pool_factory(settings: AccountSettings) -> IMAPPool:
         password=settings.imap_password,
         size=settings.pool_size,
         ssl=settings.imap_ssl,
+        tls_insecure=settings.imap_tls_insecure,
     )
 
 
