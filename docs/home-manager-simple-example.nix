@@ -1,63 +1,40 @@
-# Simpler Nix home-manager configuration for mailjail
+# Development setup: Using the official module with local mailjail repo
 #
-# This example assumes you have mailjail cloned at ~/src/mailjail
-# and uses `uv run` to execute it (no packaging required).
+# This shows how to use the official module when developing mailjail.
+# It uses `uv run` to execute from the source directory.
 #
-# This is recommended for development or if you prefer to manage
-# mailjail updates separately from home-manager.
+# Prerequisites:
+#   - mailjail cloned at ~/prg/mailjail (or adjust path below)
+#   - uv installed
 
 { config, pkgs, lib, ... }:
 
-{
-  # Systemd user service using local mailjail repository
-  systemd.user.services.mailjail = {
-    Unit = {
-      Description = "mailjail — JMAP-shaped read-only IMAP proxy";
-      After = [ "network.target" ];
-      Documentation = "https://github.com/akaihola/mailjail";
-    };
+let
+  mailjailSrc = "${config.home.homeDirectory}/prg/mailjail";
+in {
+  imports = [ "${mailjailSrc}/nix/home-manager-module.nix" ];
 
-    Service = {
-      Type = "simple";
-      # Using uv run directly from the mailjail directory
-      WorkingDirectory = "%h/src/mailjail";
-      ExecStart = "${pkgs.uv}/bin/uv run python -m mailjail";
-      Restart = "on-failure";
-      RestartSec = 10;
-
-      # Security hardening
-      PrivateTmp = true;
-      NoNewPrivileges = true;
-      ProtectSystem = "strict";
-      ProtectHome = true;
-      ReadWritePaths = [
-        "${config.home.homeDirectory}/.config/mailjail"
-        "${config.home.homeDirectory}/.cache/mailjail"
-        "${config.home.homeDirectory}/.thunderbird"
-      ];
-
-      # Resource limits
-      MemoryMax = "256M";
-      CPUQuota = "50%";
-
-      # Logging
-      StandardOutput = "journal";
-      StandardError = "journal";
-      SyslogIdentifier = "mailjail";
-    };
-
-    Install = {
-      WantedBy = [ "default.target" ];
-    };
+  services.mailjail = {
+    enable = true;
+    # Package wraps `uv run` to execute from the repo directory
+    package = pkgs.runCommand "mailjail-dev" { nativeBuildInputs = [ pkgs.uv ]; } ''
+      mkdir -p $out/bin
+      cat > $out/bin/python <<'EOF'
+      #!/usr/bin/env bash
+      cd "${mailjailSrc}"
+      exec ${pkgs.uv}/bin/uv run python "$@"
+      EOF
+      chmod +x $out/bin/python
+    '';
+    serverHost = "127.0.0.1";
+    serverPort = 8895;
+    logLevel = "INFO";
   };
 
   # Configuration file
   home.file.".config/mailjail/config.toml" = {
     text = ''
       # mailjail configuration
-      # For Thunderbird account examples, see:
-      # https://github.com/akaihola/mailjail/blob/main/DESIGN.md
-
       primary_account = "personal"
 
       [server]
@@ -85,15 +62,12 @@
   programs.bash.shellAliases = {
     mj-status = "systemctl --user status mailjail";
     mj-logs = "journalctl --user -u mailjail -f";
-    mj-restart = "systemctl --user restart mailjail";
-    mj-test = "curl -s http://127.0.0.1:8895/.well-known/jmap | jq .";
+    mj-test = "curl -s http://127.0.0.1:8895/.well-known/jmap | ${pkgs.jq}/bin/jq .";
   };
 
-  # Optional: zsh aliases
   programs.zsh.shellAliases = {
     mj-status = "systemctl --user status mailjail";
     mj-logs = "journalctl --user -u mailjail -f";
-    mj-restart = "systemctl --user restart mailjail";
-    mj-test = "curl -s http://127.0.0.1:8895/.well-known/jmap | jq .";
+    mj-test = "curl -s http://127.0.0.1:8895/.well-known/jmap | ${pkgs.jq}/bin/jq .";
   };
 }

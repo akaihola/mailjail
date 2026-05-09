@@ -57,59 +57,67 @@ journalctl --user -u mailjail -f
 
 ## home-manager Integration
 
-### Simple Setup (Recommended)
+### Using the Official Module (Recommended)
 
-Use `home-manager-simple-example.nix` if you:
-- Have mailjail cloned at `~/src/mailjail`
-- Use NixOS with home-manager
-- Prefer to manage mailjail updates separately
+The canonical way to integrate mailjail is using the official home-manager module at `nix/home-manager-module.nix`. This provides proper security hardening, flexible configuration options, and is actively maintained.
 
-1. Add to your home-manager configuration:
+**Prerequisites:** You need to provide a mailjail package. Choose one:
+
+**Development (using `uv run` from source):**
 
 ```nix
-# flake.nix or ~/.config/home-manager/home.nix
-imports = [
-  (builtins.fetchGit https://github.com/akaihola/mailjail + "/docs/home-manager-simple-example.nix")
-];
+# ~/.config/home-manager/home.nix
+{
+  imports = [ /path/to/mailjail/nix/home-manager-module.nix ];
+
+  services.mailjail = {
+    enable = true;
+    package = pkgs.runCommand "mailjail-dev" { nativeBuildInputs = [ pkgs.uv ]; } ''
+      mkdir -p $out/bin
+      cat > $out/bin/python <<'EOF'
+      #!/usr/bin/env bash
+      cd "$HOME/prg/mailjail"
+      exec ${pkgs.uv}/bin/uv run python "$@"
+      EOF
+      chmod +x $out/bin/python
+    '';
+    serverHost = "127.0.0.1";
+    serverPort = 8895;
+    logLevel = "INFO";
+  };
+}
 ```
 
-Or copy the content directly into your configuration:
+**From nixpkgs (when available):**
 
-```bash
-cat docs/home-manager-simple-example.nix >> ~/.config/home-manager/home.nix
+```nix
+services.mailjail = {
+  enable = true;
+  package = pkgs.mailjail;
+};
 ```
 
-2. Apply the configuration:
+**From a flake input:**
+
+```nix
+services.mailjail = {
+  enable = true;
+  package = inputs.mailjail.packages.${pkgs.system}.mailjail;
+};
+```
+
+Then apply:
 
 ```bash
 home-manager switch
-```
-
-3. Start the service:
-
-```bash
 systemctl --user start mailjail
 ```
 
-### Full Nix Package Setup
+### Example Configurations
 
-Use `home-manager-example.nix` if you want:
-- mailjail managed entirely by home-manager
-- Automatic sourcing from the repo
-- Full declarative configuration
-- Socket activation (optional)
-
-1. Adjust the paths in `home-manager-example.nix` to match your setup
-
-2. Add to your home-manager configuration:
-
-```nix
-imports = [
-  (builtins.fetchGit https://github.com/akaihola/mailjail + "/docs/home-manager-example.nix")
-];
-```
-
-3. Apply and start as above
+See the docs for reference implementations:
+- `home-manager-simple-example.nix` — Development setup with local source
+- `home-manager-example.nix` — Full module usage example
 
 ## Configuration
 

@@ -33,9 +33,27 @@ systemctl --user enable --now mailjail
 ```
 
 ### Option B: NixOS + home-manager (Recommended)
+
+Use the **official home-manager module**:
+
 ```bash
-# Add to ~/.config/home-manager/home.nix:
-imports = [ "${mailjail}/docs/home-manager-simple-example.nix" ];
+# ~/.config/home-manager/home.nix
+{
+  imports = [ /path/to/mailjail/nix/home-manager-module.nix ];
+
+  services.mailjail = {
+    enable = true;
+    package = pkgs.runCommand "mailjail-dev" { nativeBuildInputs = [ pkgs.uv ]; } ''
+      mkdir -p $out/bin
+      cat > $out/bin/python <<'EOF'
+      #!/usr/bin/env bash
+      cd "$HOME/prg/mailjail"
+      exec ${pkgs.uv}/bin/uv run python "$@"
+      EOF
+      chmod +x $out/bin/python
+    '';
+  };
+}
 
 # Apply
 home-manager switch
@@ -43,6 +61,8 @@ home-manager switch
 # Start
 systemctl --user start mailjail
 ```
+
+See [DEPLOYMENT.md](DEPLOYMENT.md#using-the-official-module-recommended) for full instructions and package options.
 
 ### Option C: NixOS System Service
 ```bash

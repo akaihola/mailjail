@@ -7,8 +7,9 @@ This directory contains deployment configuration examples for running mailjail a
 | File | Use Case | Best For |
 |------|----------|----------|
 | **[mailjail.service](mailjail.service)** | Direct systemd user service | Non-NixOS systems, simple setup |
-| **[home-manager-simple-example.nix](home-manager-simple-example.nix)** | NixOS home-manager setup | Most NixOS users, development |
-| **[home-manager-example.nix](home-manager-example.nix)** | Full declarative NixOS setup | Advanced users, full Nix integration |
+| **[nix/home-manager-module.nix](../nix/home-manager-module.nix)** | Official home-manager module | ✅ Recommended for all NixOS users |
+| **[home-manager-simple-example.nix](home-manager-simple-example.nix)** | Example using the official module | Reference: development setup |
+| **[home-manager-example.nix](home-manager-example.nix)** | Example using the official module | Reference: module integration |
 | **[nixos-system-example.nix](nixos-system-example.nix)** | NixOS system service | Multi-user or always-on deployments |
 | **[DEPLOYMENT.md](DEPLOYMENT.md)** | Complete deployment guide | All setup methods, troubleshooting |
 
@@ -23,15 +24,18 @@ This directory contains deployment configuration examples for running mailjail a
 
 ### For NixOS with home-manager (Recommended)
 
-1. Use `home-manager-simple-example.nix`
-2. Add to your home-manager configuration
-3. Run `home-manager switch`
-4. See [DEPLOYMENT.md](DEPLOYMENT.md#simple-setup-recommended) for details
+Use the **official home-manager module**:
+
+1. Import the module: `nix/home-manager-module.nix`
+2. Configure via `services.mailjail` options
+3. See [DEPLOYMENT.md](DEPLOYMENT.md#using-the-official-module-recommended)
+
+For a working example, see `home-manager-simple-example.nix`
 
 ### For Full NixOS Integration
 
-1. For user service: `home-manager-example.nix`
-2. For system service: `nixos-system-example.nix`
+1. User service: Use official module (recommended)
+2. System service: `nixos-system-example.nix`
 3. See [DEPLOYMENT.md](DEPLOYMENT.md) for complete guide
 
 ## File Descriptions
@@ -55,35 +59,41 @@ systemctl --user daemon-reload
 systemctl --user enable --now mailjail
 ```
 
-### home-manager-simple-example.nix
+### nix/home-manager-module.nix (Official)
 
-Minimal home-manager configuration using local mailjail repository.
+**⭐ Recommended for all NixOS users**
+
+The canonical home-manager integration module. Provides:
 
 **Features:**
-- Uses `uv run` to execute mailjail
-- Minimal boilerplate
-- Creates `~/.config/mailjail/config.toml`
-- Adds convenience bash/zsh aliases
-- Automatic restart on config changes
+- ✅ Strong security hardening (MemoryDenyWriteExecute, SystemCallArchitectures, etc.)
+- ✅ Flexible configuration via options (serverHost, serverPort, logLevel)
+- ✅ Reusable module pattern
+- ✅ Actively maintained in the repo
 
-**Setup:**
-1. Clone mailjail to `~/src/mailjail` (or adjust path in config)
-2. Copy example into home-manager configuration
-3. Run `home-manager switch`
+**Setup:** See [DEPLOYMENT.md](DEPLOYMENT.md#using-the-official-module-recommended)
+
+### home-manager-simple-example.nix
+
+**Example configuration using the official module for development**
+
+Shows how to use the official module when developing mailjail locally.
+
+**Features:**
+- Uses the official module
+- Package wraps `uv run` for development
+- Local repository support
+- Convenience aliases
+
+**Use for:** Reference when setting up development
 
 ### home-manager-example.nix
 
-Full declarative home-manager configuration with optional features.
+**Deprecated: reference only**
 
-**Features:**
-- Builds mailjail as a Nix package
-- Includes socket activation (optional)
-- Enhanced security settings
-- Multi-account configuration examples
-- Management script at `~/.local/bin/mailjail-ctl`
-- Complete documentation
+Previous approach (not using the official module). Kept for reference only.
 
-**Best for:** Advanced NixOS users who want full declarative control
+**Use for:** Understanding module usage patterns (now superseded by official module)
 
 ### nixos-system-example.nix
 

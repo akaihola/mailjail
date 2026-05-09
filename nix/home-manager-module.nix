@@ -7,10 +7,15 @@
 #       enable = true;
 #       package = pkgs.callPackage ./. { };  # or your own derivation
 #       configFile = "${config.xdg.configHome}/mailjail/config.toml";
+#       serverHost = "127.0.0.1";
+#       serverPort = 8895;
+#       logLevel = "INFO";
 #     };
 #
 # The unit listens on 127.0.0.1 only and is sandboxed with the strongest
-# systemd hardening flags that still allow outbound IMAPS.
+# systemd hardening flags that still allow outbound IMAPS. Home directory
+# is read-only (mailjail only reads config and Thunderbird profiles); cache
+# directory is writable for performance.
 { config, lib, pkgs, ... }:
 
 let
@@ -87,6 +92,9 @@ in
         NoNewPrivileges = true;
         ProtectSystem = "strict";
         ProtectHome = "read-only";
+        ReadWritePaths = [
+          "${config.xdg.cacheHome or "${config.home.homeDirectory}/.cache"}/mailjail"
+        ];
         PrivateTmp = true;
         PrivateDevices = true;
         ProtectKernelTunables = true;
