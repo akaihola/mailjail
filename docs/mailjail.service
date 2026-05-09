@@ -1,0 +1,24 @@
+[Unit]
+Description=mailjail — JMAP-shaped read-only IMAP proxy
+Documentation=file://%S/mailjail/README.md
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/share/mailjail/venv/bin/python -m mailjail
+Restart=on-failure
+RestartSec=10
+
+# Security hardening
+PrivateTmp=yes
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=%h/.config/mailjail %h/.cache/mailjail %h/.thunderbird
+
+# Resource limits
+MemoryMax=256M
+CPUQuota=50%
+
+[Install]
+WantedBy=default.target
