@@ -284,3 +284,7 @@ Acceptance tests:
       the new config schema if it has already been deployed.
       (No prior deployment; `nix/home-manager-module.nix` ships the
       multi-account-aware unit.)
+
+## Repository maintenance backlog
+
+- [ ] [Adopt modern task-tracking principles](docs/tasks/adopt-task-tracking-principles.md).
