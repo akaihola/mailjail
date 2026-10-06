@@ -90,23 +90,36 @@ exposes:
 
 ## Smoke test
 
+Run against the deployed service with plain `curl` (what the agent user
+has). Account ids come from the session resource.
+
 ```sh
-# session
-xh GET http://127.0.0.1:8895/.well-known/jmap
+J='Content-Type: application/json'
+U='["urn:ietf:params:jmap:core","urn:ietf:params:jmap:mail"]'
 
-# list folders for the "personal" account
-xh POST http://127.0.0.1:8895/jmap \
-  using:='["urn:ietf:params:jmap:core","urn:ietf:params:jmap:mail"]' \
-  methodCalls:='[["Mailbox/get",{"accountId":"personal"},"c1"]]'
+# session: accountIds and capabilities
+curl -s http://127.0.0.1:8895/.well-known/jmap
 
-# search and fetch in one round-trip via result references
-xh POST http://127.0.0.1:8895/jmap \
-  using:='["urn:ietf:params:jmap:core","urn:ietf:params:jmap:mail"]' \
-  methodCalls:='[
-    ["Email/query",{"accountId":"personal","filter":{"hasKeyword":"$flagged"},"limit":5},"q"],
-    ["Email/get",{"accountId":"personal","#ids":{"resultOf":"q","name":"Email/query","path":"/ids"}},"g"]
-  ]'
+# list folders for an account
+curl -s http://127.0.0.1:8895/jmap -H "$J" -d '{"using":'"$U"',
+  "methodCalls":[["Mailbox/get",{"accountId":"personal"},"c1"]]}'
+
+# read the inbox: newest five messages, query + fetch in one round-trip
+curl -s http://127.0.0.1:8895/jmap -H "$J" -d '{"using":'"$U"',
+  "methodCalls":[
+    ["Email/query",{"accountId":"personal","filter":{"inMailbox":"INBOX"},
+      "sort":[{"property":"receivedAt","isAscending":false}],"limit":5},"q"],
+    ["Email/get",{"accountId":"personal",
+      "#ids":{"resultOf":"q","name":"Email/query","path":"/ids"},
+      "properties":["id","subject","from","receivedAt","keywords","preview"]},"g"]
+  ]}'
 ```
+
+Expected: the session lists the configured accounts, `Mailbox/get` returns
+the folder tree with `totalEmails` counts, and `Email/get` returns five
+`INBOX:<uid>` emails with headers. `/healthz` reports per-account IMAP
+state if something is off. Last verified 2026-10-07 against the live
+service on gogo.
 
 ## Tests
 
@@ -123,7 +136,7 @@ See [TASKS.md](TASKS.md) for the up-to-date implementation plan. The
 multi-account core (Phase 5) and the Phase 3/4 robustness items (compound
 filters, server-side SORT, capability probing, attachment downloads,
 HTML→text rendering, threaded reply headers, Thread/get) are in.
-Outstanding work is mostly deployment glue: NixOS systemd unit, agent
-SKILL.md, and a smoke test against a live server.
+The service is deployed on gogo and smoke-tested against live IMAP
+accounts; see [TASKS.md](TASKS.md) for what remains.
 
 [design]: DESIGN.md
