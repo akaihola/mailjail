@@ -6,12 +6,13 @@ Rules for TASKS.md usage are at the bottom of the file.
 
 ## Ordered backlog
 
-- [ ] [*] Smoke test: agent reads inbox via curl (deferred — needs a live
-      IMAP account; instructions in README.md "Smoke test")
-
 - [ ] [*] [Adopt modern task-tracking principles](docs/tasks/adopt-task-tracking-principles.md).
 
 ## Scheduled
+
+- [*] Smoke test: agent reads inbox via curl (deferred — needs a live
+      IMAP account; instructions in README.md "Smoke test")
+  <!-- hai:{"id":"simple-e43509d48ee35e1e","updatedAt":"2026-10-06T23:48:55.681Z"} -->
 
 ## In Progress
 
