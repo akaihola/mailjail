@@ -132,6 +132,12 @@ behaviour is exercised through `imap_tools` mocks.
 
 ## Status
 
+Issues are tracked in [TASKS.md](TASKS.md). Proposals that nobody has
+reviewed go under its `## Unverified proposals` section; only the user
+promotes them to `## Ordered backlog`, and agents schedule work only from
+there. The rules at the bottom of TASKS.md govern every state move, and
+`python3 scripts/check_tasks_md.py` checks the file before a commit.
+
 See [TASKS.md](TASKS.md) for the up-to-date implementation plan. The
 multi-account core (Phase 5) and the Phase 3/4 robustness items (compound
 filters, server-side SORT, capability probing, attachment downloads,

@@ -1,6 +1,6 @@
 # Adopt modern task-tracking principles
 
-Status: backlog
+Status: completed 2026-10-07, pending user acceptance
 Requested by: user, 2026-09-18
 
 ## Reference principles
@@ -51,3 +51,48 @@ all detailed links resolve and no issue has multiple canonical records. Verify
 a sample scheduling/start/completion transition and conflict resolution without
 actually starting unrelated work. Record any deliberate differences from the
 reference rules.
+
+## Outcome (2026-10-07)
+
+The lifecycle sections, `[ ]` / `[x]` acceptance meaning and the hierarchical
+phase history were already in place from the 2026-09-29 and 2026-10-06 tracker
+commits. This issue added the remaining rules to `TASKS.md`'s `## Rules`
+section (proposal review gate, one-heading invariant, dependency and blocked
+handling, scheduling / start / completion Git workflow, conflict resolution),
+a structural checker in `scripts/check_tasks_md.py` with tests in
+`tests/test_check_tasks_md.py`, and a README pointer naming the tracker and
+its review boundary (the local `AGENTS.md` is gitignored).
+
+### Deliberate differences from the reference rules
+
+- `[~]` is not used. The 2026-09-29 commit replaced it with section placement
+  (`## In Progress`), matching the reference trackers; this issue keeps that.
+- No numbered `[N]` issues or reference-style link block. Detailed issues keep
+  `[*]` and link inline to `docs/tasks/<slug>.md`; Hai metadata comments are
+  the stable identifiers. Dependencies therefore name a link or Hai id rather
+  than `[N]`.
+- `- Blocked on: <prerequisite>` is added for prerequisites outside the
+  repository (the live-inbox smoke test). The reference rules only model
+  issue-to-issue dependencies.
+- Completed phase history stays under `### Phase N` subheadings inside
+  `## Completed / Accepted`, and Phase 5 step and acceptance-test bullets are
+  accepted together with the phase rather than as individual issues.
+- Description files are created in the worktree branch (as in filemill), not
+  on `main`.
+- The live-inbox smoke test completed on `main` on 2026-10-07 while this issue
+  was in progress, so no `Blocked on` line was needed for it; the rebase kept
+  `main`'s completed record and reapplied only this issue's move.
+
+### Validation evidence
+
+- `python3 scripts/check_tasks_md.py TASKS.md` exits 0 on the migrated file;
+  every prior item keeps its text and state, all links resolve, and no issue
+  or Hai id appears under two headings.
+- `tests/test_check_tasks_md.py` covers section order, duplicate sections,
+  issues under two headings, duplicate Hai ids, broken links and misplaced
+  acceptance checkboxes.
+- A scratch clone exercised the workflow on sample issues without touching
+  real work: schedule A on `main`; start A on a branch; schedule B on `main`;
+  rebase the branch (conflict in `TASKS.md`); resolve by taking `main`'s file
+  and reapplying only A's move; fast-forward merge; record A as
+  `- [ ] [*]` completed on `main`. The checker passed after every step.

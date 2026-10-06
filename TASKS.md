@@ -300,17 +300,127 @@ Acceptance tests:
 
 ## Rules
 
+Here are the rules for TASKS.md usage. `python3 scripts/check_tasks_md.py`
+checks the structural rules; run it before every commit that touches this file.
+
+### Where issues live
+
+- This file is the authoritative issue tracker. `AGENTS.md` is gitignored, so
+  the tracker rules live here and README.md points to them.
+- The `##` section an issue is under records its lifecycle state: proposal,
+  backlog, scheduled, in progress, or completed. The sections appear once each,
+  in this order: `## Unverified proposals` -> `## Ordered backlog` ->
+  `## Scheduled` -> `## In Progress` -> `## Completed / Accepted` -> `## Rules`.
+- The `### Phase N` subheadings under `## Completed / Accepted` record which
+  delivery phase historical work belonged to. They are not lifecycle states and
+  hold no open work; an open issue is never duplicated into a phase. Mention the
+  phase in the summary when it helps.
+- Each issue bullet starts with `[*]` (no description file) or `[N]` (numbered
+  description file). This repository has no numbered issues: a detailed issue
+  keeps `[*]` and links inline to `docs/tasks/<slug>.md`. Keep existing issue
+  numbers in its description and retain any links to additional details.
+- A `<!-- hai:{...} -->` comment under a bullet is its stable identifier. Keep
+  it attached to the bullet when moving it; never copy it to another bullet.
+
+### Unverified proposals
+
+- Bullets under `## Unverified proposals` are ideas that nobody has reviewed
+  yet. They are not candidates for scheduling: a heartbeat never picks from
+  this section. The user reviews a proposal and moves it into
+  `## Ordered backlog`, or deletes it.
+- Before adding a proposal, read the whole section. Drop an exact duplicate.
+  Merge a similar existing proposal with the new one into a single revision
+  that combines the ideas of both.
+
+### Invariant: one heading per issue
+
+At any time, each issue's bullet must be under exactly one `##` heading. It
+must never be under two headings at the same time.
+
+- Before you commit any change to TASKS.md, run
+  `python3 scripts/check_tasks_md.py`. It must exit with status 0.
+- If the check fails, it prints the duplicated bullet, misplaced checkbox,
+  broken link or section problem. Fix it before you commit.
+
 ### TASKS.md maintenance sessions
 
 - In `## Completed / Accepted`, `- [ ] [N] summary` or `- [ ] [*] summary`
   means completed work awaiting user acceptance. `- [x] [N] summary` or
   `- [x] [*] summary` means the user has accepted it. Only user acceptance
   changes `[ ]` to `[x]`; completion, tests and deployment do not.
+- Nested step and acceptance-test bullets inside a phase (Phase 5) are detail
+  of that phase's completed work, not separate issues. The user accepts them
+  together with the phase.
 - Move newly completed issues into `## Completed / Accepted` with `[ ]`.
 - During the next maintenance run, remove only `[x]` issues from this section,
   plus their unused description files and reference-style links. Keep `[ ]`
   issues and any files or links still referenced by another issue.
 - Keep each issue in one status section. Preserve its identifier, text and
   line wrapping when moving it; change only the status checkbox as needed.
-- Use `[*]` for an issue without a numbered description file. Keep existing
-  issue numbers in its description and retain any links to additional details.
+- Keep simple issues inline with `[*]`. For a detailed issue, keep a short
+  summary here and put requirements, rationale, examples and acceptance
+  criteria in `docs/tasks/<slug>.md`. Reuse an existing description for the
+  same issue; treat completed descriptions as historical requests and
+  decisions, and date later corrections.
+- Any completed issues still under `## In Progress` move to
+  `## Completed / Accepted`. Any issues being worked on still under
+  `## Ordered backlog` or `## Scheduled` move to `## In Progress`.
+- Ensure there are no duplicate sections and that they are in the documented
+  order.
+
+### Modifying issues
+
+- State dependencies with indented `- Depends on: <link or Hai id>` bullets
+  and, for a prerequisite outside this repository, `- Blocked on: <what>`.
+  Keep the same dependencies in the description file's front matter when the
+  issue has one.
+- Ensure backlog order respects dependencies, and update dependencies when
+  an issue is split, merged or completed.
+- An issue with an unmet `Depends on` or `Blocked on` stays in
+  `## Ordered backlog`. It is never scheduled until the prerequisite is met.
+- When you move an issue, preserve its identifier, text and line wrapping.
+  Change only the status checkbox when completion or user acceptance requires
+  it. This keeps moves identifiable in Git and reduces avoidable conflicts.
+- Tracker changes never read mail, touch credentials or change service
+  behaviour. The read/search/flag/draft-only policy is out of their scope.
+
+### Workflow for new issue completion
+
+1. Choose issue and schedule work (typically by a heartbeat)
+
+- Pick the first `## Ordered backlog` issue with no dependency on an
+  uncompleted issue and no `Blocked on` line. Never pick from
+  `## Unverified proposals`, `## Scheduled` or `## In Progress`.
+- Move it under `## Scheduled` in `TASKS.md` on the `main` branch, run the
+  check and commit.
+
+2. Work on the issue (typically by a task workflow)
+
+- Rebase the worktree feature branch on `main` before moving the issue, and
+  keep it rebased afterwards.
+- Move the issue under `## In Progress` in `TASKS.md` in the worktree branch,
+  ensure it is not left in any other section, run the check and commit.
+- Create or refine `docs/tasks/<slug>.md` in the worktree branch if more
+  description is needed than fits in a bullet, and link to it from the bullet.
+- Implement, then lint, test, review and refine in the worktree branch. Update
+  README.md, DESIGN.md and this file in the same commits as the behaviour they
+  describe.
+
+3. Merge and deploy (typically by last steps of a task workflow)
+
+- Rebase the feature branch on `main`, merge it on `main`, and remove the
+  worktree and branch.
+- Move the issue from `## In Progress` to `## Completed / Accepted` in
+  `TASKS.md` on `main` with `[ ]`, pending user acceptance, run the check and
+  commit.
+- Do any deployment steps defined in the development workflow (restart the
+  service after a batch of commits).
+
+When TASKS.md conflicts during a rebase or merge:
+
+- Use `main`'s version of every section as the base.
+- Apply again only the move of your own issue.
+- Never restore, add again or re-word another issue's bullet from your side of
+  the conflict.
+- After resolving the conflict, run `python3 scripts/check_tasks_md.py` and
+  read the whole file to ensure each bullet is under exactly one `##` heading.
