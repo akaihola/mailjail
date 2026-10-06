@@ -11,12 +11,11 @@ Rules for TASKS.md usage are at the bottom of the file.
 - [*] [Adopt modern task-tracking principles](docs/tasks/adopt-task-tracking-principles.md).
   <!-- hai:{"id":"simple-f4a1c7f6cea0281f","updatedAt":"2026-10-06T23:51:29.578Z"} -->
 
+## In Progress
+
 - [*] Smoke test: agent reads inbox via curl (deferred — needs a live
       IMAP account; instructions in README.md "Smoke test")
   <!-- hai:{"id":"simple-e43509d48ee35e1e","updatedAt":"2026-10-06T23:48:55.681Z"} -->
-
-## In Progress
-
 ## Completed / Accepted
 
 ### Phase 1 — Core service (MVP)
