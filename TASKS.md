@@ -2,12 +2,18 @@
 
 Rules for TASKS.md usage are at the bottom of the file.
 
+## Unverified proposals
+
 ## Ordered backlog
 
 - [ ] [*] Smoke test: agent reads inbox via curl (deferred — needs a live
       IMAP account; instructions in README.md "Smoke test")
 
 - [ ] [*] [Adopt modern task-tracking principles](docs/tasks/adopt-task-tracking-principles.md).
+
+## Scheduled
+
+## In Progress
 
 ## Completed / Accepted
 
