@@ -6,6 +6,9 @@ Rules for TASKS.md usage are at the bottom of the file.
 
 ## Ordered backlog
 
+- [*] Declare `cryptography` in `pyproject.toml`: `tests/test_thunderbird_helper.py` and `scripts/mailjail-thunderbird-password.py` import it, but a fresh `uv sync` leaves it uninstalled so test collection fails
+  <!-- hai:{"id":"simple-7adb73cf-550a-4cc3-8d43-8162f497ba7f","createdAt":"2026-10-07T18:53:10.833Z","updatedAt":"2026-10-07T18:53:10.833Z"} -->
+
 ## Scheduled
 
 ## In Progress
