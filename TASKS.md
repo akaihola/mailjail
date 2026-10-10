@@ -29,7 +29,7 @@
 - [x] NixOS systemd service definition (your user, Home Manager)
 - [x] Probe IMAP server: PERMANENTFLAGS / SORT / CONDSTORE support
 - [x] Agent skill file (`~/.claude/skills/mailjail/SKILL.md` with curl examples)
-- [ ] Smoke test: agent reads inbox via curl (deferred — needs a live
+- [x] Smoke test: agent reads inbox via curl (deferred — needs a live
       IMAP account; instructions in README.md "Smoke test")
 
 ## Phase 3 — Robustness
