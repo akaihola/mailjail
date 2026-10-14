@@ -35,6 +35,8 @@ uv sync --extra thunderbird        # add NSS decryption for Thunderbird auth
 Python 3.12+ is required. Runtime dependencies: `imap_tools`, `waitress`,
 `pydantic` (declared in [pyproject.toml](pyproject.toml)). The optional
 `thunderbird` extra adds `cryptography>=43.0` for in-process NSS decryption.
+`uv sync` also installs the `dev` dependency group (`pytest`, `pytest-mock`,
+`cryptography`) needed to run the tests; pass `--no-dev` to skip it.
 
 ## Configure
 
