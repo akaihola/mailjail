@@ -15,8 +15,8 @@ Rules for TASKS.md usage are at the bottom of the file.
 
 ## Completed / Accepted
 
-- [ ] [*] [Adopt modern task-tracking principles](docs/tasks/adopt-task-tracking-principles.md).
-  <!-- hai:{"id":"simple-f4a1c7f6cea0281f","updatedAt":"2026-10-06T23:51:29.578Z"} -->
+- [x] [*] [Adopt modern task-tracking principles](docs/tasks/adopt-task-tracking-principles.md).
+  <!-- hai:{"id":"simple-f4a1c7f6cea0281f","updatedAt":"2026-10-07T18:58:59.942Z"} -->
 
 - [ ] [*] Smoke test: agent reads inbox via curl (deferred — needs a live
       IMAP account; instructions in README.md "Smoke test")
