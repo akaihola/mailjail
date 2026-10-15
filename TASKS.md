@@ -1,54 +1,78 @@
 # mailjail Tasks
 
-`[ ]` open · `[~]` in-progress · `[x]` done
+Rules for TASKS.md usage are at the bottom of the file.
 
----
+## Unverified proposals
 
-## Phase 1 — Core service (MVP)
+## Ordered backlog
 
-- [x] Project scaffolding (pyproject.toml, src layout, AGENTS.md, .gitignore)
-- [x] Pydantic models for JMAP core (Request, Response, Invocation, error types)
-- [x] Policy module (`policy.py`) with tests
-- [x] IMAP connection pool (`imap_tools`, `queue.Queue`)
-- [x] `Mailbox/get` — list folders
-- [x] `Email/query` — search with basic filters (from, subject, date, keyword)
-- [x] `Email/get` — fetch headers, preview, full body
-- [x] `Email/set` update — keyword changes (star, seen, custom)
-- [x] `Email/set` create — save drafts
-- [x] JMAP executor: method dispatch + result references (RFC 8620 §3.7)
-- [x] WSGI app (`waitress`): POST /jmap + GET /.well-known/jmap
-- [x] GET /healthz endpoint
-- [x] Integration tests against IMAP mock / fixture
+- [*] Support OAuth2 token extraction for Gmail. Thunderbird stores Gmail
+      credentials as OAuth2 refresh tokens (not IMAP passwords) under
+      `oauth://accounts.google.com` in `logins.json`. The existing Thunderbird
+      provider only handles password-style logins. Add an OAuth2 path that:
+      reads the refresh token, exchanges it for an access token via Google's
+      token endpoint, then uses XOAUTH2 SASL when authenticating to
+      `imap.gmail.com`. Out of scope for the 2026-04-26 inlining work.
+
+## Scheduled
+
+- [*] Declare `cryptography` in `pyproject.toml`: `tests/test_thunderbird_helper.py` and `scripts/mailjail-thunderbird-password.py` import it, but a fresh `uv sync` leaves it uninstalled so test collection fails
+  <!-- hai:{"id":"simple-7adb73cf-550a-4cc3-8d43-8162f497ba7f","createdAt":"2026-10-07T18:53:10.833Z","updatedAt":"2026-10-14T22:26:59.703Z"} -->
+
+## In Progress
+
+## Completed / Accepted
+
+- [x] [*] [Adopt modern task-tracking principles](docs/tasks/adopt-task-tracking-principles.md).
+  <!-- hai:{"id":"simple-f4a1c7f6cea0281f","updatedAt":"2026-10-07T18:58:59.942Z"} -->
+
+- [ ] [*] Smoke test: agent reads inbox via curl (deferred — needs a live
+      IMAP account; instructions in README.md "Smoke test")
+  <!-- hai:{"id":"simple-e43509d48ee35e1e","updatedAt":"2026-10-06T23:51:01.801Z"} -->
+
+### Phase 1 — Core service (MVP)
+
+- [ ] [*] Project scaffolding (pyproject.toml, src layout, AGENTS.md, .gitignore)
+- [ ] [*] Pydantic models for JMAP core (Request, Response, Invocation, error types)
+- [ ] [*] Policy module (`policy.py`) with tests
+- [ ] [*] IMAP connection pool (`imap_tools`, `queue.Queue`)
+- [ ] [*] `Mailbox/get` — list folders
+- [ ] [*] `Email/query` — search with basic filters (from, subject, date, keyword)
+- [ ] [*] `Email/get` — fetch headers, preview, full body
+- [ ] [*] `Email/set` update — keyword changes (star, seen, custom)
+- [ ] [*] `Email/set` create — save drafts
+- [ ] [*] JMAP executor: method dispatch + result references (RFC 8620 §3.7)
+- [ ] [*] WSGI app (`waitress`): POST /jmap + GET /.well-known/jmap
+- [ ] [*] GET /healthz endpoint
+- [ ] [*] Integration tests against IMAP mock / fixture
       (covered by `tests/test_app.py` end-to-end through the executor with
       mocked `AccountRegistry` / `IMAPPool`.)
 
-## Phase 2 — Deployment & integration
+### Phase 2 — Deployment & integration
 
-- [x] Config file parsing (TOML via stdlib `tomllib`)
-- [x] Credential management (password file + env var)
-- [x] NixOS systemd service definition (your user, Home Manager)
-- [x] Probe IMAP server: PERMANENTFLAGS / SORT / CONDSTORE support
-- [x] Agent skill file (`~/.claude/skills/mailjail/SKILL.md` with curl examples)
-- [ ] Smoke test: agent reads inbox via curl (deferred — needs a live
-      IMAP account; instructions in README.md "Smoke test")
+- [ ] [*] Config file parsing (TOML via stdlib `tomllib`)
+- [ ] [*] Credential management (password file + env var)
+- [ ] [*] NixOS systemd service definition (your user, Home Manager)
+- [ ] [*] Probe IMAP server: PERMANENTFLAGS / SORT / CONDSTORE support
+- [ ] [*] Agent skill file (`~/.claude/skills/mailjail/SKILL.md` with curl examples)
 
-## Phase 3 — Robustness
+### Phase 3 — Robustness
 
-- [x] IMAP connection keepalive and reconnection
-- [x] `Email/changes` (returns cannotCalculateChanges; client must Email/query)
-- [x] Compound filters (AND/OR/NOT)
-- [x] SORT support (if server advertises it)
-- [x] Attachment blob download endpoint
-- [x] Structured logging
+- [ ] [*] IMAP connection keepalive and reconnection
+- [ ] [*] `Email/changes` (returns cannotCalculateChanges; client must Email/query)
+- [ ] [*] Compound filters (AND/OR/NOT)
+- [ ] [*] SORT support (if server advertises it)
+- [ ] [*] Attachment blob download endpoint
+- [ ] [*] Structured logging
 
-## Phase 4 — Polish
+### Phase 4 — Polish
 
-- [x] README with setup instructions
-- [x] Draft reply helper (auto-populate In-Reply-To, References, quoted text)
-- [x] Thread view
-- [x] HTML body → plain text for agent consumption
+- [ ] [*] README with setup instructions
+- [ ] [*] Draft reply helper (auto-populate In-Reply-To, References, quoted text)
+- [ ] [*] Thread view
+- [ ] [*] HTML body → plain text for agent consumption
 
-## Phase 5 — Multi-account support
+### Phase 5 — Multi-account support
 
 Goal: one `mailjail` server proxies multiple IMAP accounts through a single JMAP
 endpoint. Every method call requires an explicit `accountId` matching a configured
@@ -59,127 +83,127 @@ Each step below is TDD: write failing tests first, then implement. The
 acceptance-test matrix at the end of each section lists the required red/green
 tests. Sections are ordered by dependency – implement top-to-bottom.
 
-### 5.1 Error model (`models/core.py`)
+#### 5.1 Error model (`models/core.py`)
 
-- [x] Add `ACCOUNT_NOT_FOUND = "accountNotFound"` to `JMAPErrorType` in
+- [ ] [*] Add `ACCOUNT_NOT_FOUND = "accountNotFound"` to `JMAPErrorType` in
       `src/mailjail/models/core.py`.
 
 Acceptance tests (`tests/test_models.py`):
-- [x] `JMAPErrorType.ACCOUNT_NOT_FOUND` has value `"accountNotFound"`.
-- [x] `make_error_invocation(JMAPErrorType.ACCOUNT_NOT_FOUND, ...)` produces
+- [ ] [*] `JMAPErrorType.ACCOUNT_NOT_FOUND` has value `"accountNotFound"`.
+- [ ] [*] `make_error_invocation(JMAPErrorType.ACCOUNT_NOT_FOUND, ...)` produces
       `("error", {"type": "accountNotFound", ...}, call_id)`.
 
-### 5.2 Config model (`config.py`)
+#### 5.2 Config model (`config.py`)
 
-- [x] Create `AccountSettings(BaseModel)` holding per-account fields:
+- [ ] [*] Create `AccountSettings(BaseModel)` holding per-account fields:
       `imap_host`, `imap_port`, `imap_ssl`, `imap_username`, `imap_password`,
       `pool_size`, `drafts_folder`, and all credential-provider fields
       (everything currently on `Settings` except `server_host`/`server_port`).
-- [x] Reshape `Settings` to keep only `server_host`, `server_port`,
+- [ ] [*] Reshape `Settings` to keep only `server_host`, `server_port`,
       `primary_account: str`, and `accounts: dict[str, AccountSettings]`.
       Remove the flat IMAP fields from `Settings`.
-- [x] Update `load_settings` / `_merge_toml_into_data` to parse
+- [ ] [*] Update `load_settings` / `_merge_toml_into_data` to parse
       `[accounts.<id>]` TOML sections. Each section maps to one
       `AccountSettings` via the same field names the old `[imap]` section used.
-- [x] Validate that `primary_account` names an account that exists in
+- [ ] [*] Validate that `primary_account` names an account that exists in
       `accounts`; raise on mismatch.
-- [x] Drop per-account env-var overrides. Keep only server-level env vars:
+- [ ] [*] Drop per-account env-var overrides. Keep only server-level env vars:
       `MAILJAIL_SERVER_HOST`, `MAILJAIL_SERVER_PORT`. Document in DESIGN.md
       that per-account configuration is TOML-only.
-- [x] Credential resolution (`_apply_mailjail_credentials`,
+- [ ] [*] Credential resolution (`_apply_mailjail_credentials`,
       `_apply_himalaya_credentials`, `_apply_thunderbird_credentials`) runs
       independently per account during `load_settings`, scoped to that
       account's provider and paths.
 
 Acceptance tests (`tests/test_config.py`):
-- [x] Multi-account TOML parses into `Settings` with two `AccountSettings`
+- [ ] [*] Multi-account TOML parses into `Settings` with two `AccountSettings`
       entries, correct fields per account.
-- [x] Missing `primary_account` key raises `ValidationError`.
-- [x] `primary_account` naming a non-existent account raises an error.
-- [x] Each account can use a different credential provider; credentials
+- [ ] [*] Missing `primary_account` key raises `ValidationError`.
+- [ ] [*] `primary_account` naming a non-existent account raises an error.
+- [ ] [*] Each account can use a different credential provider; credentials
       resolve independently (e.g. account `work` uses himalaya, account
       `personal` uses thunderbird).
-- [x] Server-level env vars (`MAILJAIL_SERVER_HOST`, `MAILJAIL_SERVER_PORT`)
+- [ ] [*] Server-level env vars (`MAILJAIL_SERVER_HOST`, `MAILJAIL_SERVER_PORT`)
       still override TOML values.
-- [x] Old single-account TOML (no `[accounts.*]` sections) raises a clear
+- [ ] [*] Old single-account TOML (no `[accounts.*]` sections) raises a clear
       error pointing to the new schema.
 
-### 5.3 Account registry and pool lifecycle (`registry.py` – new file)
+#### 5.3 Account registry and pool lifecycle (`registry.py` – new file)
 
-- [x] Create `AccountContext` bundling one `AccountSettings` and its
+- [ ] [*] Create `AccountContext` bundling one `AccountSettings` and its
       `IMAPPool`, keyed by account ID.
-- [x] Create `AccountRegistry` holding `dict[str, AccountContext]`. Pools
+- [ ] [*] Create `AccountRegistry` holding `dict[str, AccountContext]`. Pools
       are created lazily on first `get(account_id)` call (not at construction
       time). Thread-safe lazy init.
-- [x] `AccountRegistry.get(account_id) -> AccountContext` returns the context
+- [ ] [*] `AccountRegistry.get(account_id) -> AccountContext` returns the context
       or raises `KeyError`.
-- [x] `AccountRegistry.close()` calls `pool.close()` on every materialised
+- [ ] [*] `AccountRegistry.close()` calls `pool.close()` on every materialised
       pool (for clean shutdown).
-- [x] A failing pool for one account does not prevent `get()` for other
+- [ ] [*] A failing pool for one account does not prevent `get()` for other
       accounts. Subsequent `get()` for a failed account retries pool creation.
 
 Acceptance tests (`tests/test_registry.py` – new file):
-- [x] `get("work")` returns the context for "work"; `get("unknown")` raises
+- [ ] [*] `get("work")` returns the context for "work"; `get("unknown")` raises
       `KeyError`.
-- [x] Pool is not created until the first `get()` call for that account.
-- [x] Two `get()` calls for the same account return the same pool instance.
-- [x] `close()` calls `pool.close()` on all materialised pools.
-- [x] If pool construction fails for account A, account B is still accessible.
-- [x] After pool construction failure, a retry for the same account
+- [ ] [*] Pool is not created until the first `get()` call for that account.
+- [ ] [*] Two `get()` calls for the same account return the same pool instance.
+- [ ] [*] `close()` calls `pool.close()` on all materialised pools.
+- [ ] [*] If pool construction fails for account A, account B is still accessible.
+- [ ] [*] After pool construction failure, a retry for the same account
       re-attempts construction.
 
-### 5.4 Remove implicit `"default"` fallbacks from handlers
+#### 5.4 Remove implicit `"default"` fallbacks from handlers
 
 Before wiring the executor, harden every handler so it never silently
 supplies a fallback `accountId`. The executor (5.5) will guarantee
 `accountId` is present, but defense-in-depth means handlers must not mask
 routing bugs.
 
-- [x] `handle_mailbox_get` in `models/mailbox.py:92`: change
+- [ ] [*] `handle_mailbox_get` in `models/mailbox.py:92`: change
       `args.get("accountId", "default")` → `args["accountId"]`.
-- [x] `handle_email_query` in `models/email.py:75`: same change.
-- [x] `handle_email_get` in `models/email.py:124`: same change.
-- [x] `handle_email_set` in `models/email_set.py:144`: same change.
-- [x] `handle_email_submission_set` in `models/submission.py:32`: same change.
+- [ ] [*] `handle_email_query` in `models/email.py:75`: same change.
+- [ ] [*] `handle_email_get` in `models/email.py:124`: same change.
+- [ ] [*] `handle_email_set` in `models/email_set.py:144`: same change.
+- [ ] [*] `handle_email_submission_set` in `models/submission.py:32`: same change.
 
 Acceptance tests (update existing tests in `tests/test_executor.py`,
 `tests/test_models.py`, `tests/conftest.py`):
-- [x] Every handler test fixture includes an explicit `"accountId"` value.
-- [x] Calling any handler with `args` missing `"accountId"` raises `KeyError`
+- [ ] [*] Every handler test fixture includes an explicit `"accountId"` value.
+- [ ] [*] Calling any handler with `args` missing `"accountId"` raises `KeyError`
       (not silently returns `"default"`).
 
-### 5.5 Executor routing (`executor.py`)
+#### 5.5 Executor routing (`executor.py`)
 
-- [x] Change `Executor.__init__` to accept `AccountRegistry` instead of
+- [ ] [*] Change `Executor.__init__` to accept `AccountRegistry` instead of
       `pool: IMAPPool, settings: Settings`.
-- [x] In `_dispatch`, before reaching any handler: extract `accountId` from
+- [ ] [*] In `_dispatch`, before reaching any handler: extract `accountId` from
       resolved args. If absent or not a string, return `accountNotFound`.
       Call `registry.get(accountId)` – on `KeyError`, return
       `accountNotFound`.
-- [x] Pass the resolved `AccountContext.pool` and `AccountContext.settings`
+- [ ] [*] Pass the resolved `AccountContext.pool` and `AccountContext.settings`
       into each handler. Handler signatures remain `(args, pool)` or
       `(args, pool, settings)` – unchanged.
-- [x] `EmailSubmission/set` currently takes only `args`; extend its call site
+- [ ] [*] `EmailSubmission/set` currently takes only `args`; extend its call site
       to also pass the resolved `AccountContext.settings` so it can use the
       account-specific `imap_username` as from-address.
 
 Acceptance tests (`tests/test_executor.py`):
-- [x] Request with valid `accountId` dispatches to the correct pool (mock
+- [ ] [*] Request with valid `accountId` dispatches to the correct pool (mock
       two registries, assert the right pool's methods are called).
-- [x] Request with missing `accountId` returns `("error",
+- [ ] [*] Request with missing `accountId` returns `("error",
       {"type": "accountNotFound", ...}, call_id)`.
-- [x] Request with unknown `accountId` returns `accountNotFound`.
-- [x] Two method calls in one request with different valid `accountId` values
+- [ ] [*] Request with unknown `accountId` returns `accountNotFound`.
+- [ ] [*] Two method calls in one request with different valid `accountId` values
       each use their own pool.
-- [x] Result-reference resolution still works across calls to different
+- [ ] [*] Result-reference resolution still works across calls to different
       accounts.
 
-### 5.6 Handler adjustments
+#### 5.6 Handler adjustments
 
-- [x] `handle_email_set_create` (`models/email_set.py`): already receives
+- [ ] [*] `handle_email_set_create` (`models/email_set.py`): already receives
       `settings` – verify it uses `settings.drafts_folder` and
       `settings.imap_username`. No code change expected; add test.
-- [x] `handle_email_submission_set` (`models/submission.py`): add `settings`
+- [ ] [*] `handle_email_submission_set` (`models/submission.py`): add `settings`
       parameter. Use `settings.imap_username` for logging the intercepted
       from-address. Do NOT validate that the referenced `emailId` belongs to
       the same account – intercepted submissions are fake anyway, and
@@ -187,41 +211,41 @@ Acceptance tests (`tests/test_executor.py`):
       Add a code comment documenting this decision.
 
 Acceptance tests:
-- [x] `Email/set` create for account `work` appends to `work`'s
+- [ ] [*] `Email/set` create for account `work` appends to `work`'s
       `drafts_folder` using `work`'s pool, with from-address
       `work`'s `imap_username` (`tests/test_imap/test_drafts.py`).
-- [x] `EmailSubmission/set` for account `work` logs `work`'s `imap_username`
+- [ ] [*] `EmailSubmission/set` for account `work` logs `work`'s `imap_username`
       as the intercepted from-address (`tests/test_executor.py`).
 
-### 5.7 Session resource (`session.py`)
+#### 5.7 Session resource (`session.py`)
 
-- [x] Change `session_resource(settings)` →
+- [ ] [*] Change `session_resource(settings)` →
       `session_resource(settings, registry)` (or accept the full `Settings`
       with its `accounts` dict – whichever is simpler).
-- [x] Build `"accounts"` dict by iterating `settings.accounts`: each key is
+- [ ] [*] Build `"accounts"` dict by iterating `settings.accounts`: each key is
       the account ID, value has `name` (from `imap_username`), `isPersonal`,
       and `accountCapabilities` with `urn:ietf:params:jmap:mail` and
       `urn:ietf:params:jmap:submission`.
-- [x] Set `"primaryAccounts"` for both `urn:ietf:params:jmap:mail` and
+- [ ] [*] Set `"primaryAccounts"` for both `urn:ietf:params:jmap:mail` and
       `urn:ietf:params:jmap:submission` to `settings.primary_account`.
 
 Acceptance tests (`tests/test_session.py` – new file):
-- [x] Session with two accounts: both appear in `"accounts"` with correct
+- [ ] [*] Session with two accounts: both appear in `"accounts"` with correct
       `name` and `accountCapabilities`.
-- [x] `"primaryAccounts"` values equal `settings.primary_account`.
-- [x] Single-account config: the one account appears, and
+- [ ] [*] `"primaryAccounts"` values equal `settings.primary_account`.
+- [ ] [*] Single-account config: the one account appears, and
       `"primaryAccounts"` points to it.
 
-### 5.8 Bootstrap and app layer (`__main__.py`, `app.py`)
+#### 5.8 Bootstrap and app layer (`__main__.py`, `app.py`)
 
-- [x] `main()` in `__main__.py`: call `load_settings()`, construct
+- [ ] [*] `main()` in `__main__.py`: call `load_settings()`, construct
       `AccountRegistry` from `settings.accounts`, construct `Executor` with
       the registry, pass `settings` and `registry` to `make_app`. Remove the
       single `IMAPPool` construction.
-- [x] `make_app` signature: accept `executor`, `registry`, and `settings`
+- [ ] [*] `make_app` signature: accept `executor`, `registry`, and `settings`
       (drop bare `pool` parameter).
-- [x] `/.well-known/jmap` route: call `session_resource(settings, registry)`.
-- [x] `/healthz` route: iterate all accounts in the registry. Report
+- [ ] [*] `/.well-known/jmap` route: call `session_resource(settings, registry)`.
+- [ ] [*] `/healthz` route: iterate all accounts in the registry. Report
       per-account status. Overall status is `"ok"` only if at least the
       primary account's pool is healthy. Response shape:
       ```json
@@ -233,67 +257,187 @@ Acceptance tests (`tests/test_session.py` – new file):
         }
       }
       ```
-- [x] On SIGTERM / `KeyboardInterrupt`, call `registry.close()` to drain
+- [ ] [*] On SIGTERM / `KeyboardInterrupt`, call `registry.close()` to drain
       all pools.
 
 Acceptance tests (`tests/test_app.py` – new file):
-- [x] `GET /.well-known/jmap` returns multi-account session JSON with correct
+- [ ] [*] `GET /.well-known/jmap` returns multi-account session JSON with correct
       structure.
-- [x] `GET /healthz` returns per-account health status; overall `"ok"` when
+- [ ] [*] `GET /healthz` returns per-account health status; overall `"ok"` when
       primary is healthy even if a secondary is not.
-- [x] `GET /healthz` returns `"error"` when primary account's pool is down.
-- [x] `POST /jmap` routes through executor; a valid request with a known
+- [ ] [*] `GET /healthz` returns `"error"` when primary account's pool is down.
+- [ ] [*] `POST /jmap` routes through executor; a valid request with a known
       `accountId` succeeds.
 
-### 5.9 DESIGN.md update
+#### 5.9 DESIGN.md update
 
 Update `/home/akaihola/prg/mailjail/DESIGN.md` so it reflects the
 multi-account architecture. Specific sections to revise:
 
-- [x] **§3.1 Session / capabilities**: replace the single-account
+- [ ] [*] **§3.1 Session / capabilities**: replace the single-account
       `"default"` example JSON with a multi-account example; document
       `primaryAccounts` sourcing from `primary_account` config key.
-- [x] **§3.2 Request format**: update `"accountId": "default"` examples to
+- [ ] [*] **§3.2 Request format**: update `"accountId": "default"` examples to
       use a named account (e.g. `"work"`).
-- [x] **§3.3 Supported methods / Email/set create + update**: note that
+- [ ] [*] **§3.3 Supported methods / Email/set create + update**: note that
       `accountId` is required and validated; `accountNotFound` is returned
       for unknown accounts.
-- [x] **§3.4 Error responses**: add `accountNotFound` to the error type
+- [ ] [*] **§3.4 Error responses**: add `accountNotFound` to the error type
       table.
-- [x] **§3.5 /healthz**: document the new per-account health response shape.
-- [x] **§5 Project structure**: add `registry.py` and `tests/test_registry.py`,
+- [ ] [*] **§3.5 /healthz**: document the new per-account health response shape.
+- [ ] [*] **§5 Project structure**: add `registry.py` and `tests/test_registry.py`,
       `tests/test_session.py`, `tests/test_app.py`.
-- [x] **§8 Connection management**: describe per-account lazy pools, thread-safe
+- [ ] [*] **§8 Connection management**: describe per-account lazy pools, thread-safe
       init, isolation guarantees, and shutdown via `registry.close()`.
-- [x] **§9 Configuration**: replace single-account `[imap]` TOML example with
+- [ ] [*] **§9 Configuration**: replace single-account `[imap]` TOML example with
       `[accounts.<id>]` schema; add `primary_account` key; document that
       per-account env-var overrides are not supported (server-level only).
-- [x] **§11 Agent integration**: update curl examples to use a named
+- [ ] [*] **§11 Agent integration**: update curl examples to use a named
       `accountId`.
-- [x] **§12 Implementation phases**: add Phase 5 summary.
+- [ ] [*] **§12 Implementation phases**: add Phase 5 summary.
 
 Acceptance tests:
-- [x] Skim-read DESIGN.md after all edits; verify no remaining `"default"`
+- [ ] [*] Skim-read DESIGN.md after all edits; verify no remaining `"default"`
       account references exist outside of historical/comparison context.
 
-### 5.10 Post-implementation
+#### 5.10 Post-implementation
 
-- [x] Revisit agent skill design once the multi-account server contract is
+- [ ] [*] Revisit agent skill design once the multi-account server contract is
       stable. (`skills/mailjail/SKILL.md` written for the multi-account API.)
-- [x] Update any existing NixOS / systemd config (Phase 2 work) to match
+- [ ] [*] Update any existing NixOS / systemd config (Phase 2 work) to match
       the new config schema if it has already been deployed.
       (No prior deployment; `nix/home-manager-module.nix` ships the
       multi-account-aware unit.)
 
-## Phase 6 — Credential providers (backlog)
+### Phase 6 — Credential providers
 
-- [x] Inline Thunderbird NSS decryption into `mailjail.thunderbird`; gate
+- [ ] [*] Inline Thunderbird NSS decryption into `mailjail.thunderbird`; gate
       `cryptography` behind the `thunderbird` extra; remove standalone helper
       script (2026-04-26).
-- [ ] Support OAuth2 token extraction for Gmail. Thunderbird stores Gmail
-      credentials as OAuth2 refresh tokens (not IMAP passwords) under
-      `oauth://accounts.google.com` in `logins.json`. The existing Thunderbird
-      provider only handles password-style logins. Add an OAuth2 path that:
-      reads the refresh token, exchanges it for an access token via Google's
-      token endpoint, then uses XOAUTH2 SASL when authenticating to
-      `imap.gmail.com`. Out of scope for the 2026-04-26 inlining work.
+
+## Rules
+
+Here are the rules for TASKS.md usage. `python3 scripts/check_tasks_md.py`
+checks the structural rules; run it before every commit that touches this file.
+
+### Where issues live
+
+- This file is the authoritative issue tracker. `AGENTS.md` is gitignored, so
+  the tracker rules live here and README.md points to them.
+- The `##` section an issue is under records its lifecycle state: proposal,
+  backlog, scheduled, in progress, or completed. The sections appear once each,
+  in this order: `## Unverified proposals` -> `## Ordered backlog` ->
+  `## Scheduled` -> `## In Progress` -> `## Completed / Accepted` -> `## Rules`.
+- The `### Phase N` subheadings under `## Completed / Accepted` record which
+  delivery phase historical work belonged to. They are not lifecycle states and
+  hold no open work; an open issue is never duplicated into a phase. Mention the
+  phase in the summary when it helps.
+- Each issue bullet starts with `[*]` (no description file) or `[N]` (numbered
+  description file). This repository has no numbered issues: a detailed issue
+  keeps `[*]` and links inline to `docs/tasks/<slug>.md`. Keep existing issue
+  numbers in its description and retain any links to additional details.
+- A `<!-- hai:{...} -->` comment under a bullet is its stable identifier. Keep
+  it attached to the bullet when moving it; never copy it to another bullet.
+
+### Unverified proposals
+
+- Bullets under `## Unverified proposals` are ideas that nobody has reviewed
+  yet. They are not candidates for scheduling: a heartbeat never picks from
+  this section. The user reviews a proposal and moves it into
+  `## Ordered backlog`, or deletes it.
+- Before adding a proposal, read the whole section. Drop an exact duplicate.
+  Merge a similar existing proposal with the new one into a single revision
+  that combines the ideas of both.
+
+### Invariant: one heading per issue
+
+At any time, each issue's bullet must be under exactly one `##` heading. It
+must never be under two headings at the same time.
+
+- Before you commit any change to TASKS.md, run
+  `python3 scripts/check_tasks_md.py`. It must exit with status 0.
+- If the check fails, it prints the duplicated bullet, misplaced checkbox,
+  broken link or section problem. Fix it before you commit.
+
+### TASKS.md maintenance sessions
+
+- In `## Completed / Accepted`, `- [ ] [N] summary` or `- [ ] [*] summary`
+  means completed work awaiting user acceptance. `- [x] [N] summary` or
+  `- [x] [*] summary` means the user has accepted it. Only user acceptance
+  changes `[ ]` to `[x]`; completion, tests and deployment do not.
+- Nested step and acceptance-test bullets inside a phase (Phase 5) are detail
+  of that phase's completed work, not separate issues. The user accepts them
+  together with the phase.
+- Move newly completed issues into `## Completed / Accepted` with `[ ]`.
+- During the next maintenance run, remove only `[x]` issues from this section,
+  plus their unused description files and reference-style links. Keep `[ ]`
+  issues and any files or links still referenced by another issue.
+- Keep each issue in one status section. Preserve its identifier, text and
+  line wrapping when moving it; change only the status checkbox as needed.
+- Keep simple issues inline with `[*]`. For a detailed issue, keep a short
+  summary here and put requirements, rationale, examples and acceptance
+  criteria in `docs/tasks/<slug>.md`. Reuse an existing description for the
+  same issue; treat completed descriptions as historical requests and
+  decisions, and date later corrections.
+- Any completed issues still under `## In Progress` move to
+  `## Completed / Accepted`. Any issues being worked on still under
+  `## Ordered backlog` or `## Scheduled` move to `## In Progress`.
+- Ensure there are no duplicate sections and that they are in the documented
+  order.
+
+### Modifying issues
+
+- State dependencies with indented `- Depends on: <link or Hai id>` bullets
+  and, for a prerequisite outside this repository, `- Blocked on: <what>`.
+  Keep the same dependencies in the description file's front matter when the
+  issue has one.
+- Ensure backlog order respects dependencies, and update dependencies when
+  an issue is split, merged or completed.
+- An issue with an unmet `Depends on` or `Blocked on` stays in
+  `## Ordered backlog`. It is never scheduled until the prerequisite is met.
+- When you move an issue, preserve its identifier, text and line wrapping.
+  Change only the status checkbox when completion or user acceptance requires
+  it. This keeps moves identifiable in Git and reduces avoidable conflicts.
+- Tracker changes never read mail, touch credentials or change service
+  behaviour. The read/search/flag/draft-only policy is out of their scope.
+
+### Workflow for new issue completion
+
+1. Choose issue and schedule work (typically by a heartbeat)
+
+- Pick the first `## Ordered backlog` issue with no dependency on an
+  uncompleted issue and no `Blocked on` line. Never pick from
+  `## Unverified proposals`, `## Scheduled` or `## In Progress`.
+- Move it under `## Scheduled` in `TASKS.md` on the `main` branch, run the
+  check and commit.
+
+2. Work on the issue (typically by a task workflow)
+
+- Rebase the worktree feature branch on `main` before moving the issue, and
+  keep it rebased afterwards.
+- Move the issue under `## In Progress` in `TASKS.md` in the worktree branch,
+  ensure it is not left in any other section, run the check and commit.
+- Create or refine `docs/tasks/<slug>.md` in the worktree branch if more
+  description is needed than fits in a bullet, and link to it from the bullet.
+- Implement, then lint, test, review and refine in the worktree branch. Update
+  README.md, DESIGN.md and this file in the same commits as the behaviour they
+  describe.
+
+3. Merge and deploy (typically by last steps of a task workflow)
+
+- Rebase the feature branch on `main`, merge it on `main`, and remove the
+  worktree and branch.
+- Move the issue from `## In Progress` to `## Completed / Accepted` in
+  `TASKS.md` on `main` with `[ ]`, pending user acceptance, run the check and
+  commit.
+- Do any deployment steps defined in the development workflow (restart the
+  service after a batch of commits).
+
+When TASKS.md conflicts during a rebase or merge:
+
+- Use `main`'s version of every section as the base.
+- Apply again only the move of your own issue.
+- Never restore, add again or re-word another issue's bullet from your side of
+  the conflict.
+- After resolving the conflict, run `python3 scripts/check_tasks_md.py` and
+  read the whole file to ensure each bullet is under exactly one `##` heading.
