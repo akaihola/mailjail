@@ -16,12 +16,12 @@ Rules for TASKS.md usage are at the bottom of the file.
 
 ## Scheduled
 
-- [*] Declare `cryptography` in `pyproject.toml`: `tests/test_thunderbird_helper.py` and `scripts/mailjail-thunderbird-password.py` import it, but a fresh `uv sync` leaves it uninstalled so test collection fails
-  <!-- hai:{"id":"simple-7adb73cf-550a-4cc3-8d43-8162f497ba7f","createdAt":"2026-10-07T18:53:10.833Z","updatedAt":"2026-10-14T22:26:59.703Z"} -->
-
 ## In Progress
 
 ## Completed / Accepted
+
+- [ ] [*] Declare `cryptography` in `pyproject.toml`: `tests/test_thunderbird_helper.py` and `scripts/mailjail-thunderbird-password.py` import it, but a fresh `uv sync` leaves it uninstalled so test collection fails
+  <!-- hai:{"id":"simple-7adb73cf-550a-4cc3-8d43-8162f497ba7f","createdAt":"2026-10-07T18:53:10.833Z","updatedAt":"2026-10-14T22:29:25.584Z"} -->
 
 - [x] [*] [Adopt modern task-tracking principles](docs/tasks/adopt-task-tracking-principles.md).
   <!-- hai:{"id":"simple-f4a1c7f6cea0281f","updatedAt":"2026-10-07T18:58:59.942Z"} -->

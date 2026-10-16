@@ -9,8 +9,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0", "pytest-mock>=3.0"]
 thunderbird = ["cryptography>=43.0"]
+
+[dependency-groups]
+dev = ["pytest>=8.0", "pytest-mock>=3.0", "cryptography>=43.0"]
 
 [build-system]
 requires = ["hatchling"]
