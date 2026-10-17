@@ -8,16 +8,16 @@ Rules for TASKS.md usage are at the bottom of the file.
 
 ## Scheduled
 
-- [*] Support OAuth2 token extraction for Gmail. Thunderbird stores Gmail
+## In Progress
+
+- [~] [*] Support OAuth2 token extraction for Gmail. Thunderbird stores Gmail
       credentials as OAuth2 refresh tokens (not IMAP passwords) under
       `oauth://accounts.google.com` in `logins.json`. The existing Thunderbird
       provider only handles password-style logins. Add an OAuth2 path that:
       reads the refresh token, exchanges it for an access token via Google's
       token endpoint, then uses XOAUTH2 SASL when authenticating to
       `imap.gmail.com`. Out of scope for the 2026-04-26 inlining work.
-  <!-- hai:{"id":"simple-66d04ffc79679ee6","updatedAt":"2026-10-17T08:49:58.112Z"} -->
-
-## In Progress
+      <!-- hai:{"id":"simple-66d04ffc79679ee6","updatedAt":"2026-10-17T08:50:21.245Z"} -->
 
 ## Completed / Accepted
 
