@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, ConfigDict, SecretStr, model_validator
 
 DEFAULT_CONFIG_PATH = Path.home() / ".config" / "mailjail" / "config.toml"
 DEFAULT_PASSWORD_PATH = Path.home() / ".config" / "mailjail" / "password"
@@ -31,12 +31,15 @@ CredentialProvider = Literal[
 
 
 class AccountSettings(BaseModel):
+    model_config = ConfigDict(hide_input_in_errors=True)
+
     imap_host: str = "mail.example.com"
     imap_port: int = 993
     imap_ssl: bool = True
     imap_tls_insecure: bool = False
     imap_username: str
     imap_password: str
+    oauth2_refresh_token: SecretStr | None = None
     pool_size: int = 3
     drafts_folder: str = "Drafts"
     credential_provider: CredentialProvider = "mailjail"
@@ -48,6 +51,19 @@ class AccountSettings(BaseModel):
     thunderbird_hostname_hint: str | None = None
     thunderbird_username_hint: str | None = None
 
+    @model_validator(mode="after")
+    def _check_oauth2(self) -> AccountSettings:
+        if self.oauth2_refresh_token is not None and (
+            self.imap_host != "imap.gmail.com"
+            or not self.imap_ssl
+            or self.imap_tls_insecure
+            or not self.oauth2_refresh_token.get_secret_value()
+        ):
+            raise ValueError(
+                "Gmail OAuth2 requires a token and verified TLS to imap.gmail.com"
+            )
+        return self
+
 
 class Settings(BaseModel):
     server_host: str = "127.0.0.1"
@@ -56,7 +72,7 @@ class Settings(BaseModel):
     accounts: dict[str, AccountSettings]
 
     @model_validator(mode="after")
-    def _check_primary(self) -> "Settings":
+    def _check_primary(self) -> Settings:
         if self.primary_account not in self.accounts:
             raise ValueError(
                 f"primary_account {self.primary_account!r} is not defined in "
@@ -151,7 +167,7 @@ def load_settings(config_path: Path = DEFAULT_CONFIG_PATH) -> Settings:
         raise ConfigError(
             f"{config_path}: legacy single-account [imap] schema is no longer "
             "supported. Migrate to per-account sections under [accounts.<id>] "
-            "and add a top-level `primary_account = \"<id>\"` key."
+            'and add a top-level `primary_account = "<id>"` key.'
         )
     if "accounts" not in raw or not raw["accounts"]:
         raise ConfigError(
@@ -256,7 +272,9 @@ def _build_account(account_id: str, section: dict[str, Any]) -> AccountSettings:
 
 def _apply_mailjail_credentials(data: dict[str, Any]) -> None:
     password_path_str = data.get("password_file")
-    password_path = Path(password_path_str) if password_path_str else DEFAULT_PASSWORD_PATH
+    password_path = (
+        Path(password_path_str) if password_path_str else DEFAULT_PASSWORD_PATH
+    )
     if password_path.exists():
         password = password_path.read_text().strip()
         if password:
@@ -264,7 +282,9 @@ def _apply_mailjail_credentials(data: dict[str, Any]) -> None:
 
 
 def _apply_himalaya_credentials(data: dict[str, Any]) -> None:
-    config_path = Path(data.get("himalaya_config_path", str(DEFAULT_HIMALAYA_CONFIG_PATH)))
+    config_path = Path(
+        data.get("himalaya_config_path", str(DEFAULT_HIMALAYA_CONFIG_PATH))
+    )
     account_name = data.get("himalaya_account", "")
     creds = read_himalaya_credentials(config_path, account_name)
     if not data.get("imap_host") and creds.host:
@@ -301,16 +321,21 @@ def _apply_thunderbird_credentials(data: dict[str, Any]) -> None:
             encrypted_password=login.encrypted_password,
         )
     except (ValueError, sqlite3.DatabaseError, binascii.Error) as exc:
-        raise CredentialError(
-            f"Thunderbird decryption failed: {exc}"
-        ) from exc
+        raise CredentialError(f"Thunderbird decryption failed: {exc}") from exc
 
+    if login.hostname == "oauth://accounts.google.com":
+        data.setdefault("imap_host", "imap.gmail.com")
+        data["oauth2_refresh_token"] = password
+        data["imap_password"] = ""
+        return
     if not data.get("imap_host"):
         data["imap_host"] = _origin_host(login.hostname)
     data["imap_password"] = password
 
 
-def read_himalaya_credentials(config_path: Path, account_name: str) -> HimalayaCredentials:
+def read_himalaya_credentials(
+    config_path: Path, account_name: str
+) -> HimalayaCredentials:
     if not config_path.exists():
         raise CredentialError(f"Himalaya config not found: {config_path}")
     with open(config_path, "rb") as f:
@@ -403,7 +428,39 @@ def read_thunderbird_login(
     filtered: list[dict[str, Any]] = []
     for entry in candidates:
         hostname = entry.get("hostname", "")
-        if hostname_hint and hostname_hint not in hostname and hostname_hint != _origin_host(hostname):
+        is_gmail_oauth = hostname == "oauth://accounts.google.com"
+        gmail_hint = hostname_hint in {
+            None,
+            "imap.gmail.com",
+            "accounts.google.com",
+            hostname,
+        }
+        if is_gmail_oauth:
+            if not gmail_hint:
+                continue
+            from mailjail.thunderbird import decrypt_login
+
+            if not username_hint or not entry.get("encryptedUsername"):
+                continue
+            scopes = entry.get("httpRealm", "").split()
+            if scopes and "https://mail.google.com/" not in scopes:
+                continue
+            try:
+                username = decrypt_login(
+                    key4_db=key_db_path,
+                    encrypted_password=entry["encryptedUsername"],
+                )
+            except (ValueError, sqlite3.DatabaseError, binascii.Error):
+                raise CredentialError(
+                    "Thunderbird OAuth2 username decryption failed"
+                ) from None
+            if username != username_hint:
+                continue
+        elif (
+            hostname_hint
+            and hostname_hint not in hostname
+            and hostname_hint != _origin_host(hostname)
+        ):
             continue
         if username_hint and entry.get("encryptedUsername") is None:
             continue
@@ -414,6 +471,12 @@ def read_thunderbird_login(
             f"No Thunderbird login found for host hint '{hostname_hint or '*'}' in {logins_path}"
         )
 
+    if len(filtered) > 1 and any(
+        e.get("hostname") == "oauth://accounts.google.com" for e in filtered
+    ):
+        raise CredentialError(
+            "Multiple Thunderbird logins match; set host/profile hints"
+        )
     entry = filtered[0]
     return ThunderbirdLogin(
         profile=profile,
@@ -429,6 +492,6 @@ def _origin_host(origin: str) -> str:
     value = origin.strip()
     for prefix in ("imap://", "mailbox://", "https://", "http://"):
         if value.startswith(prefix):
-            value = value[len(prefix):]
+            value = value[len(prefix) :]
             break
     return value.split("/", 1)[0].split(":", 1)[0]

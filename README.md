@@ -88,6 +88,29 @@ environment-variable overrides are intentionally **not** supported; the
 only env vars honoured are `MAILJAIL_SERVER_HOST` and
 `MAILJAIL_SERVER_PORT`.
 
+Thunderbird Gmail accounts are supported through OAuth2. Set `host` to
+`imap.gmail.com`, `username` to the Gmail address, and `provider` to
+`thunderbird` in the account's auth section. For example:
+
+```toml
+[accounts.gmail]
+host = "imap.gmail.com"
+username = "me@gmail.com"
+drafts_folder = "[Gmail]/Drafts"
+
+[accounts.gmail.auth]
+provider = "thunderbird"
+```
+
+Include `gmail` in your existing configuration and choose `primary_account`
+as usual. Thunderbird must already have authorized that account. Mailjail
+matches the stored OAuth2 login by its decrypted username, decrypts its refresh
+token, and exchanges it with Google before each new IMAP connection. Connections
+use XOAUTH2 over verified TLS. Access tokens stay in memory. Revoked tokens
+require signing in again through Thunderbird and restarting mailjail. Multiple
+matching logins require narrowing the profile or removing obsolete saved logins
+in Thunderbird. Password-based accounts continue to use IMAP LOGIN.
+
 ## Run
 
 ```sh

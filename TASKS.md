@@ -10,16 +10,16 @@ Rules for TASKS.md usage are at the bottom of the file.
 
 ## In Progress
 
-- [~] [*] Support OAuth2 token extraction for Gmail. Thunderbird stores Gmail
+## Completed / Accepted
+
+- [ ] [*] Support OAuth2 token extraction for Gmail. Thunderbird stores Gmail
       credentials as OAuth2 refresh tokens (not IMAP passwords) under
       `oauth://accounts.google.com` in `logins.json`. The existing Thunderbird
       provider only handles password-style logins. Add an OAuth2 path that:
       reads the refresh token, exchanges it for an access token via Google's
       token endpoint, then uses XOAUTH2 SASL when authenticating to
       `imap.gmail.com`. Out of scope for the 2026-04-26 inlining work.
-      <!-- hai:{"id":"simple-66d04ffc79679ee6","updatedAt":"2026-10-17T08:50:21.245Z"} -->
-
-## Completed / Accepted
+      <!-- hai:{"id":"simple-66d04ffc79679ee6","updatedAt":"2026-10-17T08:52:06.419Z"} -->
 
 - [x] [*] Declare `cryptography` in `pyproject.toml`: `tests/test_thunderbird_helper.py` and `scripts/mailjail-thunderbird-password.py` import it, but a fresh `uv sync` leaves it uninstalled so test collection fails
   <!-- hai:{"id":"simple-7adb73cf-550a-4cc3-8d43-8162f497ba7f","createdAt":"2026-10-07T18:53:10.833Z","updatedAt":"2026-10-16T16:17:14.911Z"} -->

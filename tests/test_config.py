@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
+from textwrap import dedent
 
 import pytest
 
@@ -13,7 +15,6 @@ from mailjail.config import (
     read_himalaya_credentials,
     read_thunderbird_login,
 )
-
 
 HIMALAYA_CONFIG = """
 [accounts.testuser]
@@ -35,7 +36,7 @@ Path=abcd.default-release
 Default=1
 """
 
-LOGINS_JSON = r'''
+LOGINS_JSON = r"""
 {
   "logins": [
     {
@@ -45,13 +46,13 @@ LOGINS_JSON = r'''
     }
   ]
 }
-'''
+"""
 
 
 # --- Multi-account TOML parsing ---
 
 
-MULTI_ACCOUNT_TOML = '''
+MULTI_ACCOUNT_TOML = """
 primary_account = "work"
 
 [server]
@@ -71,7 +72,7 @@ host = "mail.personal.example"
 username = "me@personal.example"
 password = "personal-secret"
 drafts_folder = "INBOX/Drafts"
-'''
+"""
 
 
 def test_load_settings_parses_multiple_accounts(tmp_path: Path) -> None:
@@ -352,3 +353,96 @@ def test_read_thunderbird_login(tmp_path: Path) -> None:
     assert login.encrypted_password == "encrypted-pass"
 
 
+@pytest.mark.parametrize("host", ["imap.gmail.com", None])
+def test_gmail_thunderbird_oauth(tmp_path: Path, host: str | None) -> None:
+    from mailjail.config import _apply_thunderbird_credentials
+    from tests.test_thunderbird import synthetic_profile_factory
+
+    profile = synthetic_profile_factory(tmp_path)
+    logins = json.loads((profile / "logins.json").read_text())["logins"]
+    entry = dict(
+        logins[0],
+        hostname="oauth://accounts.google.com",
+        httpRealm="https://mail.google.com/",
+    )
+    (profile / "logins.json").write_text(json.dumps({"logins": [entry]}))
+    data = {
+        "thunderbird_dir": str(tmp_path),
+        "thunderbird_profile": "profile",
+        "imap_username": "user@example.com",
+    }
+    if host:
+        data["imap_host"] = host
+    _apply_thunderbird_credentials(data)
+    assert data["imap_host"] == "imap.gmail.com"
+    assert data["imap_password"] == ""
+    assert data["oauth2_refresh_token"] == "my-secret-imap-password"
+
+
+def test_gmail_oauth_does_not_select_another_user(tmp_path: Path) -> None:
+    from mailjail.config import _apply_thunderbird_credentials
+    from tests.test_thunderbird import synthetic_profile_factory
+
+    profile = synthetic_profile_factory(tmp_path)
+    logins = json.loads((profile / "logins.json").read_text())["logins"]
+    logins[0]["hostname"] = "oauth://accounts.google.com"
+    (profile / "logins.json").write_text(json.dumps({"logins": logins[:1]}))
+    with pytest.raises(CredentialError, match="No Thunderbird login"):
+        _apply_thunderbird_credentials(
+            {
+                "thunderbird_dir": str(tmp_path),
+                "thunderbird_profile": "profile",
+                "imap_host": "imap.gmail.com",
+                "imap_username": "other@example.com",
+            }
+        )
+
+
+@pytest.mark.parametrize("case", ["multi-user", "wrong-scope", "ambiguous"])
+def test_gmail_login_selection(tmp_path: Path, case: str) -> None:
+    from tests.test_thunderbird import (
+        KEY_ID,
+        LOGIN_IV_DES3,
+        PROFILE_KEY_DES3,
+        _build_login_blob_b64,
+        synthetic_profile_factory,
+    )
+
+    profile = synthetic_profile_factory(tmp_path)
+    original = json.loads((profile / "logins.json").read_text())["logins"][0]
+    entry = dict(
+        original,
+        hostname="oauth://accounts.google.com",
+        httpRealm="https://mail.google.com/",
+    )
+    other = dict(entry)
+    if case == "multi-user":
+        other["encryptedUsername"] = _build_login_blob_b64(
+            KEY_ID, LOGIN_IV_DES3, PROFILE_KEY_DES3, b"other@example.com"
+        )
+    elif case == "wrong-scope":
+        other["httpRealm"] = "https://www.googleapis.com/auth/calendar"
+    (profile / "logins.json").write_text(json.dumps({"logins": [other, entry]}))
+    config_path = tmp_path / "config.toml"
+    config_path.write_text(
+        dedent(f'''
+        primary_account = "gmail"
+        [accounts.gmail]
+        host = "imap.gmail.com"
+        username = "user@example.com"
+        [accounts.gmail.auth]
+        provider = "thunderbird"
+        thunderbird_dir = "{tmp_path}"
+        thunderbird_profile = "profile"
+    ''')
+    )
+    if case == "ambiguous":
+        with pytest.raises(CredentialError, match="Multiple Thunderbird logins"):
+            load_settings(config_path)
+    else:
+        settings = load_settings(config_path).accounts["gmail"]
+        assert (
+            settings.oauth2_refresh_token.get_secret_value()
+            == "my-secret-imap-password"
+        )
+        assert settings.imap_password == ""

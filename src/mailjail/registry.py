@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import logging
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 
 from .config import AccountSettings
 from .imap.connection import IMAPPool
@@ -31,6 +31,11 @@ def _default_pool_factory(settings: AccountSettings) -> IMAPPool:
         size=settings.pool_size,
         ssl=settings.imap_ssl,
         tls_insecure=settings.imap_tls_insecure,
+        oauth2_refresh_token=(
+            settings.oauth2_refresh_token.get_secret_value()
+            if settings.oauth2_refresh_token is not None
+            else None
+        ),
     )
 
 

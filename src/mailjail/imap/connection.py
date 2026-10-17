@@ -3,10 +3,12 @@
 import logging
 import queue
 import ssl as ssl_module
-from contextlib import contextmanager
-from typing import Generator
+from collections.abc import Generator
+from contextlib import contextmanager, suppress
 
 from imap_tools import MailBox
+
+from mailjail.oauth import gmail_access_token
 
 logger = logging.getLogger(__name__)
 
@@ -42,11 +44,13 @@ class IMAPPool:
         size: int = 3,
         ssl: bool = True,
         tls_insecure: bool = False,
+        oauth2_refresh_token: str | None = None,
     ) -> None:
         self._host = host
         self._port = port
         self._username = username
         self._password = password
+        self._oauth2_refresh_token = oauth2_refresh_token
         self._ssl = ssl
         self._tls_insecure = tls_insecure
         self._ssl_context: ssl_module.SSLContext | None = (
@@ -54,8 +58,12 @@ class IMAPPool:
         )
         self._pool: queue.Queue[MailBox] = queue.Queue(maxsize=size)
         self._capabilities: frozenset[str] = frozenset()
-        for _ in range(size):
-            self._pool.put(self._make_connection())
+        try:
+            for _ in range(size):
+                self._pool.put(self._make_connection())
+        except Exception:
+            self.close()
+            raise
 
     def _make_connection(self) -> MailBox:
         """Create and return a logged-in MailBox with initial_folder=None.
@@ -63,10 +71,17 @@ class IMAPPool:
         initial_folder=None avoids the implicit SELECT INBOX on login,
         which is important because we explicitly select folders before each operation.
         """
-        mb = MailBox(
-            host=self._host, port=self._port, ssl_context=self._ssl_context
-        )
-        mb.login(self._username, self._password, initial_folder=None)
+        mb = MailBox(host=self._host, port=self._port, ssl_context=self._ssl_context)
+        try:
+            if self._oauth2_refresh_token is not None:
+                token = gmail_access_token(self._oauth2_refresh_token)
+                mb.xoauth2(self._username, token, initial_folder=None)
+            else:
+                mb.login(self._username, self._password, initial_folder=None)
+        except Exception:
+            with suppress(OSError):
+                mb.client.shutdown()
+            raise
         if not self._capabilities:
             try:
                 caps = mb.client.capabilities  # imaplib exposes a tuple

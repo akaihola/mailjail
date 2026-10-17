@@ -655,7 +655,24 @@ new schema.
 
 Thunderbird note: NSS decryption (the same scheme Firefox/Thunderbird use to protect `logins.json` with the master password) is implemented in-process in `mailjail.thunderbird`. The `cryptography` library is an *optional* extra so users on other providers (himalaya, password-file) don't pay the dependency cost. Earlier versions of mailjail shelled out to a separate `mailjail-thunderbird-password` helper script — that helper has been removed.
 
-The Thunderbird provider only handles password-style logins. Gmail accounts in Thunderbird are stored as OAuth2 refresh tokens (`oauth://accounts.google.com` in `logins.json`) and are not yet supported — see TASKS.md Phase 6 for the OAuth2 backlog item.
+The Thunderbird provider also handles Gmail refresh tokens stored under
+`oauth://accounts.google.com`. It decrypts the username to select the configured
+account and checks the mail scope when a realm is present. Ambiguous matches
+fail. Refresh tokens are held separately from IMAP passwords as Pydantic
+`SecretStr` values. Every new IMAP connection exchanges the refresh token at
+`https://oauth2.googleapis.com/token` with a 30-second timeout, then calls
+`imap_tools.MailBox.xoauth2` with `initial_folder=None`. This also renews access
+on pool reconnection without a persistent access-token cache. OAuth2 requires
+`imap.gmail.com` with verified TLS. Token exchange errors omit response bodies
+and credentials, and failed authentication closes the socket.
+
+Refresh tokens are bound to the OAuth client that issued them, so this path uses
+Thunderbird's published desktop client identity from
+[Mozilla's provider definitions](https://github.com/mozilla/releases-comm-central/blob/master/mailnews/base/src/OAuth2Providers.sys.mjs).
+It does not initiate new authorization grants or modify the Thunderbird profile.
+A revoked token requires reauthorization in Thunderbird and a service restart.
+The exchange follows [Google's refresh-token protocol](https://developers.google.com/identity/protocols/oauth2/native-app#offline)
+and [Gmail's XOAUTH2 protocol](https://developers.google.com/workspace/gmail/imap/xoauth2-protocol).
 
 ## 10. Deployment
 
