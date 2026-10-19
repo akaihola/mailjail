@@ -478,8 +478,9 @@ must never be under two headings at the same time.
 
 - In `## Completed / Accepted`, `- [ ] [N] summary` or `- [ ] [*] summary`
   means completed work awaiting user acceptance. `- [x] [N] summary` or
-  `- [x] [*] summary` means the user has accepted it. Only user acceptance
-  changes `[ ]` to `[x]`; completion, tests and deployment do not.
+  `- [x] [*] summary` means the user has accepted it. Only user acceptance,
+  or the steward's under its acceptance policy, changes `[ ]` to `[x]`;
+  completion, tests and deployment do not.
 - Nested step and acceptance-test bullets inside a phase (Phase 5) are detail
   of that phase's completed work, not separate issues. The user accepts them
   together with the phase.
