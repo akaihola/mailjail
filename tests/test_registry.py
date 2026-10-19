@@ -1,5 +1,6 @@
 """Tests for the per-account IMAP pool registry."""
 
+import threading
 from unittest.mock import MagicMock
 
 import pytest
@@ -107,3 +108,47 @@ def test_pool_failure_is_retried_on_next_get() -> None:
         registry.get("work")
     # second call retries and succeeds
     assert registry.get("work").pool is not None
+
+
+def test_close_during_pool_creation_closes_the_unpublished_pool() -> None:
+    started = threading.Barrier(2, timeout=5)
+    release = threading.Event()
+    pool = MagicMock(name="pool")
+
+    def factory(_s: AccountSettings) -> MagicMock:
+        started.wait()
+        assert release.wait(5)
+        return pool
+
+    registry = AccountRegistry({"work": _settings()}, pool_factory=factory)
+    errors: list[Exception] = []
+
+    def get() -> None:
+        try:
+            registry.get("work")
+        except RuntimeError as exc:
+            errors.append(exc)
+
+    worker = threading.Thread(target=get)
+    worker.start()
+    started.wait()
+    registry.close()  # must not wait for the in-flight login
+    assert worker.is_alive()
+    release.set()
+    worker.join(5)
+
+    assert not worker.is_alive()
+    assert len(errors) == 1
+    pool.close.assert_called_once()
+    assert registry.materialised() == {}
+
+
+def test_get_after_close_raises_without_logging_in() -> None:
+    factory = MagicMock()
+    registry = AccountRegistry({"work": _settings()}, pool_factory=factory)
+    registry.close()
+
+    with pytest.raises(RuntimeError, match="closed"):
+        registry.get("work")
+
+    factory.assert_not_called()

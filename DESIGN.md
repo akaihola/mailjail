@@ -434,12 +434,13 @@ mailjail/
 └── tests/
     ├── conftest.py
     ├── test_executor.py     ← Policy enforcement + multi-account routing
-    ├── test_registry.py     ← Lazy per-account pool init
+    ├── test_registry.py     ← Lazy per-account pool init, close races
     ├── test_session.py      ← /.well-known/jmap multi-account session
     ├── test_app.py          ← WSGI routing (jmap, healthz, well-known)
     ├── test_policy.py       ← Allowlist unit tests
     ├── test_models.py       ← Pydantic model validation
     └── test_imap/
+        ├── test_connection.py ← Pool borrow, replacement, close
         ├── test_search.py   ← Filter → SEARCH translation
         ├── test_flags.py    ← Keyword ↔ flag mapping
         └── test_drafts.py   ← Draft composition
@@ -563,44 +564,36 @@ never prevents `get()` for any other. The executor calls `get` only for
 methods that touch IMAP; `Thread/get`, `Email/changes` and the intercepted
 `EmailSubmission/set` answer from configuration alone.
 
-On shutdown the entry point calls `registry.close()`, which iterates every
-materialised pool and drains it; never-touched accounts have no pool to close.
+On shutdown the entry point calls `registry.close()`, which marks the
+registry closed and closes every materialised pool; never-touched accounts
+have no pool to close. Publication of a new pool and `close()` share one
+lock, but the pool is built (network login) outside it. `get` after
+`close()` raises; one whose login finishes after `close()` first closes
+its new pool, so every constructed pool is either published or closed.
 
 Connection pooling within a single account: a small pool (2-4 connections)
-using a `queue.Queue`. Each request borrows a connection, uses it, returns it.
-Connections are validated with NOOP before reuse, reconnected if stale.
+in a `queue.Queue` of exactly `size` slots. A slot holds an idle logged-in
+`MailBox` or `None` (capacity whose connection was discarded).
+`IMAPPool.connection()` is the only checkout/return path, and it always
+puts one slot back:
+
+- **Borrow:** take a slot (wait up to 30 s); NOOP its connection, or connect
+  if the slot is empty or the NOOP failed. If connecting fails, the slot
+  goes back empty and the error propagates; the next borrow of that slot
+  tries again. No background reconnection.
+- **Return:** a transport error (`OSError`, `imaplib.IMAP4.abort`) in the
+  `with` body shuts the connection down and returns its slot empty. Any
+  other exception, such as a server NO reply or a failed conversion, returns
+  the connection for reuse; the next borrow's NOOP still checks it.
+- **Close:** `close()` logs out idle connections; a connection returned
+  after `close()` is logged out instead of queued, and later borrows raise.
+- `health_check()` is one borrow: its NOOP is the probe.
 
 `imap.fetch.fetch_messages` owns borrowing, folder selection, UID criteria and
 `mark_seen=False` for Email/get and attachment downloads. It materializes the
 FETCH iterator before releasing the connection, so callers never consume a
 server iterator after another request can select a different folder. Email/get
 compares complete requested IDs against converted IDs for `notFound`.
-
-```python
-import queue
-from contextlib import contextmanager
-from imap_tools import MailBox
-
-class IMAPPool:
-    def __init__(self, host: str, user: str, password: str, size: int = 3):
-        self._pool: queue.Queue[MailBox] = queue.Queue(maxsize=size)
-        for _ in range(size):
-            mb = MailBox(host).login(user, password)
-            self._pool.put(mb)
-
-    @contextmanager
-    def connection(self):
-        mb = self._pool.get(timeout=30)
-        try:
-            mb.client.noop()  # validate connection
-            yield mb
-        except Exception:
-            # reconnect on failure
-            mb = MailBox(self._host).login(self._user, self._password)
-            raise
-        finally:
-            self._pool.put(mb)
-```
 
 waitress's default thread pool size (4) aligns well with a pool of 3 IMAP
 connections — one thread can always serve /healthz without waiting for IMAP.

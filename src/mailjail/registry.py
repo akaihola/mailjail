@@ -56,7 +56,10 @@ class AccountRegistry:
         self._account_settings = dict(accounts)
         self._pool_factory = pool_factory
         self._contexts: dict[str, AccountContext] = {}
+        # Guards _contexts writes and _closed: publication and close() are
+        # ordered, so close() either sees a new pool or its creator sees close().
         self._global_lock = threading.Lock()
+        self._closed = False
         self._account_locks: dict[str, threading.Lock] = {
             account_id: threading.Lock() for account_id in accounts
         }
@@ -75,7 +78,8 @@ class AccountRegistry:
 
         Raises ``KeyError`` if no such account is configured. Pool construction
         happens once, under a per-account lock; failures do not poison the
-        registry — the next call retries.
+        registry — the next call retries. Raises ``RuntimeError`` after
+        ``close()``, closing any pool whose login finished after it.
         """
         if account_id not in self._account_settings:
             raise KeyError(account_id)
@@ -89,11 +93,16 @@ class AccountRegistry:
             cached = self._contexts.get(account_id)
             if cached is not None:
                 return cached
-            settings = self._account_settings[account_id]
-            pool = self._pool_factory(settings)
-            context = AccountContext(settings=settings, pool=pool)
-            self._contexts[account_id] = context
-            return context
+            if not self._closed:
+                settings = self._account_settings[account_id]
+                pool = self._pool_factory(settings)  # network login, no global lock
+                with self._global_lock:
+                    if not self._closed:
+                        context = AccountContext(settings=settings, pool=pool)
+                        self._contexts[account_id] = context
+                        return context
+                pool.close()
+            raise RuntimeError("account registry is closed")
 
     def materialised(self) -> dict[str, AccountContext]:
         """Return a copy of currently-materialised contexts (no lazy init)."""
@@ -103,6 +112,7 @@ class AccountRegistry:
     def close(self) -> None:
         """Close every materialised pool. Safe to call repeatedly."""
         with self._global_lock:
+            self._closed = True
             contexts = list(self._contexts.values())
             self._contexts.clear()
         for ctx in contexts:
