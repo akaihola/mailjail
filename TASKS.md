@@ -6,10 +6,10 @@ Rules for TASKS.md usage are at the bottom of the file.
 
 ## Ordered backlog
 
-- [5] Hide selected-folder fetch mechanics behind one tested operation
-  <!-- hai:{"id":"simple-c61887b2-cbca-44a7-979c-01523005c888","labels":["steward"],"createdAt":"2026-10-19T11:18:16.725Z","updatedAt":"2026-10-19T11:18:16.725Z"} -->
-
 ## Scheduled
+
+- [5] Hide selected-folder fetch mechanics behind one tested operation
+  <!-- hai:{"id":"simple-c61887b2-cbca-44a7-979c-01523005c888","labels":["steward"],"createdAt":"2026-10-19T11:18:16.725Z","updatedAt":"2026-10-19T12:28:54.797Z"} -->
 
 ## In Progress
 
