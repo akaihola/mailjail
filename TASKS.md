@@ -6,6 +6,9 @@ Rules for TASKS.md usage are at the bottom of the file.
 
 ## Ordered backlog
 
+- [2] Accept hai-tasks' [~] In Progress marker in the tracker check
+  <!-- hai:{"id":"simple-10ef580c-0284-475a-97c0-1bfa866a477f","labels":["steward"],"createdAt":"2026-10-19T11:07:39.393Z","updatedAt":"2026-10-19T11:07:39.393Z"} -->
+
 ## Scheduled
 
 ## In Progress
@@ -425,7 +428,9 @@ Acceptance tests:
 
 [1]: docs/tasks/1-review-mailjail-s-architecture-for-deep-modules-and-over-engineering-a.md
 
-<!-- hai:reserved-numbers:1 -->
+<!-- hai:reserved-numbers:1,2 -->
+
+[2]: docs/tasks/2-accept-hai-tasks-in-progress-marker-in-the-tracker-check.md
 
 ## Rules
 
