@@ -176,6 +176,9 @@ reviewed go under its `## Unverified proposals` section; only the user
 promotes them to `## Ordered backlog`, and agents schedule work only from
 there. The rules at the bottom of TASKS.md govern every state move, and
 `python3 scripts/check_tasks_md.py` checks the file before a commit.
+The checker accepts hai-tasks' `[~]` marker only under `## In Progress`;
+unmarked issue bullets remain valid there. Acceptance checkboxes `[ ]` and
+`[x]` belong only under `## Completed / Accepted`.
 
 See [TASKS.md](TASKS.md) for the up-to-date implementation plan. The
 multi-account core (Phase 5) and the Phase 3/4 robustness items (compound

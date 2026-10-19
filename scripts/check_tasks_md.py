@@ -5,8 +5,9 @@ Usage: python3 scripts/check_tasks_md.py [TASKS.md]
 
 Verifies that the lifecycle sections appear once and in order, that each
 issue bullet sits under exactly one ``##`` heading, that Hai identifiers are
-unique, that relative links resolve, and that acceptance checkboxes appear
-only under ``## Completed / Accepted``. Prints each problem and exits with
+unique, that relative links resolve, that ``[~]`` appears only under
+``## In Progress``, and that acceptance checkboxes appear only under
+``## Completed / Accepted``. Prints each problem and exits with
 status 1 if any was found, else 0.
 """
 
@@ -26,7 +27,7 @@ SECTIONS = [
     "Rules",
 ]
 COMPLETED = "Completed / Accepted"
-_BULLET = re.compile(r"^- (\[[ x]\] )?(\[(?:\*|\d+)\])")
+_BULLET = re.compile(r"^- (\[[ x~]\] )?(\[(?:\*|\d+)\])")
 _HAI = re.compile(r"<!-- hai:(\{.*?\}) -->")
 _LINK = re.compile(r"\]\((?!https?://|#)([^)\s]+)\)|^\[\d+\]: (\S+)", re.MULTILINE)
 
@@ -56,7 +57,10 @@ def check(path: Path) -> list[str]:
         if match is None:
             problems.append(f"line {number}: bullet must start with [*] or [N]: {line}")
             continue
-        if (heading == COMPLETED) != (match.group(1) is not None):
+        if match.group(1) == "[~] ":
+            if heading != "In Progress":
+                problems.append(f"line {number}: in-progress checkbox misplaced in {heading}: {line}")
+        elif (heading == COMPLETED) != (match.group(1) is not None):
             problems.append(f"line {number}: acceptance checkbox misplaced in {heading}: {line}")
         issues.setdefault(line[match.end() :].strip(), set()).add(heading)
     for summary, found in issues.items():

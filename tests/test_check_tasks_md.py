@@ -60,6 +60,32 @@ def test_valid_tracker_has_no_problems(tmp_path: Path) -> None:
     assert checker.check(_write(tmp_path, VALID)) == []
 
 
+@pytest.mark.parametrize("reference", ["[*]", "[2]"])
+def test_in_progress_marker_is_valid(tmp_path: Path, reference: str) -> None:
+    text = VALID.replace("- [*] Something in flight", f"- [~] {reference} Something in flight")
+    assert checker.main([str(_write(tmp_path, text))]) == 0
+
+
+@pytest.mark.parametrize(
+    "section", ["Unverified proposals", "Ordered backlog", "Scheduled", "Completed / Accepted"]
+)
+def test_in_progress_marker_outside_in_progress_is_reported(tmp_path: Path, section: str) -> None:
+    text = VALID.replace(f"## {section}\n", f"## {section}\n\n- [~] [2] Misplaced\n")
+    assert any("checkbox" in p for p in checker.check(_write(tmp_path, text)))
+
+
+def test_in_progress_marker_does_not_hide_duplicate_issue(tmp_path: Path) -> None:
+    text = VALID.replace("- [*] Something in flight", "- [~] [*] Something in flight")
+    text = text.replace("## Scheduled\n", "## Scheduled\n\n- [*] Something in flight\n")
+    assert any("issue under several headings" in p for p in checker.check(_write(tmp_path, text)))
+
+
+@pytest.mark.parametrize("bullet", ["- [?] [2] Malformed", "- [~] Malformed"])
+def test_malformed_bullet_is_reported(tmp_path: Path, bullet: str) -> None:
+    text = VALID.replace("- [*] Something in flight", bullet)
+    assert checker.main([str(_write(tmp_path, text))]) == 1
+
+
 def test_real_tracker_is_valid() -> None:
     assert checker.check(Path(__file__).resolve().parent.parent / "TASKS.md") == []
 

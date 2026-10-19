@@ -481,6 +481,8 @@ must never be under two headings at the same time.
 
 ### TASKS.md maintenance sessions
 
+- Under `## In Progress`, hai-tasks may prefix an issue reference with `[~]`.
+  Unmarked issue bullets remain valid there; `[~]` is invalid in other sections.
 - In `## Completed / Accepted`, `- [ ] [N] summary` or `- [ ] [*] summary`
   means completed work awaiting user acceptance. `- [x] [N] summary` or
   `- [x] [*] summary` means the user has accepted it. Only user acceptance,
