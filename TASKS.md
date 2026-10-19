@@ -6,10 +6,10 @@ Rules for TASKS.md usage are at the bottom of the file.
 
 ## Ordered backlog
 
-- [8] Put body selection and truncation in the fetch conversion contract
-  <!-- hai:{"id":"simple-00532c7f-6aad-40b9-b102-1609674839f6","labels":["steward"],"createdAt":"2026-10-19T14:11:42.621Z","updatedAt":"2026-10-19T14:11:42.621Z"} -->
-
 ## Scheduled
+
+- [8] Put body selection and truncation in the fetch conversion contract
+  <!-- hai:{"id":"simple-00532c7f-6aad-40b9-b102-1609674839f6","labels":["steward"],"createdAt":"2026-10-19T14:11:42.621Z","updatedAt":"2026-10-19T15:54:53.609Z"} -->
 
 ## In Progress
 
