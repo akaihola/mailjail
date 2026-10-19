@@ -11,10 +11,10 @@ Rules for TASKS.md usage are at the bottom of the file.
 
 ## Scheduled
 
-- [7] Make a query plan own folder selection and sort support
-  <!-- hai:{"id":"simple-4924e198-f45b-4d3c-a9b7-5cc4217f2ce2","labels":["steward"],"createdAt":"2026-10-19T14:11:42.189Z","updatedAt":"2026-10-19T15:53:12.815Z"} -->
-
 ## In Progress
+
+- [~] [7] Make a query plan own folder selection and sort support
+      <!-- hai:{"id":"simple-4924e198-f45b-4d3c-a9b7-5cc4217f2ce2","labels":["steward"],"createdAt":"2026-10-19T14:11:42.189Z","updatedAt":"2026-10-19T15:53:30.559Z"} -->
 
 ## Completed / Accepted
 
