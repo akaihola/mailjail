@@ -8,10 +8,10 @@ Rules for TASKS.md usage are at the bottom of the file.
 
 ## Scheduled
 
-- [2] Accept hai-tasks' [~] In Progress marker in the tracker check
-  <!-- hai:{"id":"simple-10ef580c-0284-475a-97c0-1bfa866a477f","labels":["steward"],"createdAt":"2026-10-19T11:07:39.393Z","updatedAt":"2026-10-19T11:08:01.975Z"} -->
-
 ## In Progress
+
+- [~] [2] Accept hai-tasks' [~] In Progress marker in the tracker check
+      <!-- hai:{"id":"simple-10ef580c-0284-475a-97c0-1bfa866a477f","labels":["steward"],"createdAt":"2026-10-19T11:07:39.393Z","updatedAt":"2026-10-19T11:08:12.479Z"} -->
 
 - [1] Review mailjail's architecture for deep modules and over-engineering, and
   draft the fixes
