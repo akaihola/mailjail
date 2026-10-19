@@ -6,11 +6,11 @@ Rules for TASKS.md usage are at the bottom of the file.
 
 ## Ordered backlog
 
+## Scheduled
+
 - [1] Review mailjail's architecture for deep modules and over-engineering, and
   draft the fixes
-  <!-- hai:{"id":"simple-debf051e-7bb3-4704-8414-79b444def535","labels":["steward"],"createdAt":"2026-10-19T08:08:28.055Z","updatedAt":"2026-10-19T08:08:28.055Z"} -->
-
-## Scheduled
+  <!-- hai:{"id":"simple-debf051e-7bb3-4704-8414-79b444def535","labels":["steward"],"createdAt":"2026-10-19T08:08:28.055Z","updatedAt":"2026-10-19T08:32:23.617Z"} -->
 
 ## In Progress
 
