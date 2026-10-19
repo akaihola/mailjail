@@ -14,10 +14,10 @@ Rules for TASKS.md usage are at the bottom of the file.
 
 ## Scheduled
 
-- [6] Make pool lifecycle rules true at one boundary
-  <!-- hai:{"id":"simple-77b4dbbd-cf41-486b-aea6-c87891b1ab72","labels":["steward"],"createdAt":"2026-10-19T14:11:41.558Z","updatedAt":"2026-10-19T15:38:36.105Z"} -->
-
 ## In Progress
+
+- [~] [6] Make pool lifecycle rules true at one boundary
+      <!-- hai:{"id":"simple-77b4dbbd-cf41-486b-aea6-c87891b1ab72","labels":["steward"],"createdAt":"2026-10-19T14:11:41.558Z","updatedAt":"2026-10-19T15:38:49.954Z"} -->
 
 ## Completed / Accepted
 
