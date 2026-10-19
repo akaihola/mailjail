@@ -4,9 +4,41 @@ import re
 from typing import Any
 
 from imap_tools import AND, MailMessage
+from pydantic import BaseModel, ConfigDict, Field
 
 from .connection import IMAPPool
 from .flags import imap_flags_to_jmap_keywords
+
+
+class EmailGetOptions(BaseModel):
+    """Validated projection and body controls shared by fetch and conversion."""
+
+    model_config = ConfigDict(strict=True, frozen=True)
+
+    properties: list[str] | None = None
+    fetchTextBodyValues: bool = False
+    fetchHTMLBodyValues: bool = False
+    maxBodyValueBytes: int = Field(default=0, ge=0)
+
+    def wants(self, name: str) -> bool:
+        return self.properties is None or name in self.properties
+
+    @property
+    def headers_only(self) -> bool:
+        return not (
+            any(self.wants(name) for name in (
+                "textBody", "htmlBody", "preview", "attachments", "hasAttachment",
+            ))
+            or (self.wants("bodyValues")
+                and (self.fetchTextBodyValues or self.fetchHTMLBodyValues))
+        )
+
+    def body_value(self, text: str) -> dict[str, Any]:
+        encoded = text.encode("utf-8")
+        truncated = bool(self.maxBodyValueBytes and len(encoded) > self.maxBodyValueBytes)
+        if truncated:
+            text = encoded[:self.maxBodyValueBytes].decode("utf-8", errors="ignore")
+        return {"value": text, "isEncodingProblem": False, "isTruncated": truncated}
 
 
 def fetch_messages(
@@ -122,11 +154,11 @@ def _address_list(addr_values: Any) -> list[dict[str, str]]:
 def imap_message_to_jmap_email(
     msg: MailMessage,
     folder: str,
-    properties: list[str] | None = None,
+    options: EmailGetOptions,
 ) -> dict[str, Any]:
     """Map imap_tools MailMessage to a JMAP Email dict.
 
-    If properties is None, return all properties.
+    If options.properties is None, return all supported properties.
     'id' is always included regardless of the properties list.
     """
     if msg.uid is None:
@@ -167,18 +199,6 @@ def imap_message_to_jmap_email(
         "sentAt": msg.date.isoformat() if msg.date else None,
         "receivedAt": msg.date.isoformat() if msg.date else None,
         "size": msg.size_rfc822,
-        "preview": make_preview(msg.text or html_to_text(msg.html or "")),
-        "hasAttachment": bool(msg.attachments),
-        "attachments": [
-            {
-                "blobId": attachment_blob_id(folder, msg.uid, idx),
-                "name": getattr(att, "filename", "") or "",
-                "type": getattr(att, "content_type", "") or "application/octet-stream",
-                "size": len(getattr(att, "payload", b"") or b""),
-                "disposition": getattr(att, "content_disposition", "") or "attachment",
-            }
-            for idx, att in enumerate(msg.attachments or [])
-        ],
         "headers": [
             {"name": k, "value": v} for k, vs in (msg.headers or {}).items() for v in vs
         ],
@@ -187,33 +207,43 @@ def imap_message_to_jmap_email(
         "bodyValues": {},
     }
 
-    # Build body parts. If the message is HTML-only, derive a plain-text
-    # rendering so agents that only request textBody still get readable
-    # content.
-    text = msg.text
-    if not text and msg.html:
-        text = html_to_text(msg.html)
-    if text:
-        full["textBody"] = [{"partId": "1", "type": "text/plain"}]
-        full["bodyValues"]["1"] = {
-            "value": text,
-            "isEncodingProblem": False,
-            "isTruncated": False,
-        }
-    if msg.html:
-        full["htmlBody"] = [{"partId": "2", "type": "text/html"}]
-        full["bodyValues"]["2"] = {
-            "value": msg.html,
-            "isEncodingProblem": False,
-            "isTruncated": False,
-        }
+    if options.wants("preview"):
+        full["preview"] = make_preview(msg.text or html_to_text(msg.html or ""))
+    if options.wants("hasAttachment"):
+        full["hasAttachment"] = bool(msg.attachments)
+    if options.wants("attachments"):
+        full["attachments"] = [
+            {
+                "blobId": attachment_blob_id(folder, msg.uid, idx),
+                "name": getattr(att, "filename", "") or "",
+                "type": getattr(att, "content_type", "") or "application/octet-stream",
+                "size": len(getattr(att, "payload", b"") or b""),
+                "disposition": getattr(att, "content_disposition", "") or "attachment",
+            }
+            for idx, att in enumerate(msg.attachments or [])
+        ]
 
-    if properties is None:
+    # Keep the synthetic plain-text part for HTML-only messages.
+    for part_id, name, content_type, fetch_value in (
+        ("1", "textBody", "text/plain", options.fetchTextBodyValues),
+        ("2", "htmlBody", "text/html", options.fetchHTMLBodyValues),
+    ):
+        include_value = options.wants("bodyValues") and fetch_value
+        if not (options.wants(name) or include_value):
+            continue
+        text = (msg.text or html_to_text(msg.html or "")) if name == "textBody" else msg.html
+        if text:
+            if options.wants(name):
+                full[name] = [{"partId": part_id, "type": content_type}]
+            if include_value:
+                full["bodyValues"][part_id] = options.body_value(text)
+
+    if options.properties is None:
         return full
 
     # Filter to requested properties, always include 'id'
     result: dict[str, Any] = {"id": email_id}
-    for prop in properties:
+    for prop in options.properties:
         if prop in full and prop != "id":
             result[prop] = full[prop]
     return result

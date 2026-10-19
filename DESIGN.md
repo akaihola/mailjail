@@ -187,12 +187,25 @@ Fetch one or more messages by ID.
 
 **Properties**: `id`, `blobId`, `threadId`, `mailboxIds`, `keywords`,
 `from`, `to`, `cc`, `bcc`, `replyTo`, `subject`, `sentAt`, `receivedAt`,
-`size`, `preview`, `bodyStructure`, `bodyValues`, `textBody`, `htmlBody`,
+`size`, `preview`, `bodyValues`, `textBody`, `htmlBody`,
 `attachments`, `hasAttachment`, `headers`.
 
-**`fetchTextBodyValues`**: When true, include plain text body content.
-**`fetchHTMLBodyValues`**: When true, include HTML body content.
-**`maxBodyValueBytes`**: Truncate body values to this size.
+**`fetchTextBodyValues`**: Boolean, default false. Include plain text body values.
+For HTML-only mail, this includes the generated plain-text rendering.
+**`fetchHTMLBodyValues`**: Boolean, default false. Include HTML body values.
+**`maxBodyValueBytes`**: Non-negative integer, default 0 (unlimited). Limit each
+selected decoded body value to this many UTF-8 bytes without splitting a code
+point. `isTruncated` is true only when content was removed. Invalid types,
+including integer booleans and boolean byte limits, return `invalidArguments`.
+
+The switches select entries in `bodyValues`; `textBody` and `htmlBody` part
+descriptors are independent of them. With both switches false, `bodyValues` is
+empty. `properties` controls serialization and required fetch data. A request
+for `hasAttachment` alone fetches the full message; header projections do not
+fetch or convert bodies even when body-value switches are true.
+
+`bodyStructure` is unsupported and omitted, including when explicitly requested.
+The proxy does not expose a MIME tree API.
 
 **IMAP mapping**: `FETCH` with `BODY.PEEK[]` (PEEK to avoid setting \Seen).
 

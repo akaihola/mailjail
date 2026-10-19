@@ -2,10 +2,11 @@
 
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from ..imap.connection import IMAPPool
 from ..imap.fetch import (
+    EmailGetOptions,
     email_id_to_folder_uid,
     fetch_messages,
     folder_uid_to_email_id,
@@ -171,11 +172,10 @@ def handle_email_get(
     """
     account_id = args["accountId"]
     ids: list[str] = args.get("ids", [])
-    properties: list[str] | None = args.get("properties")
-
-    # Determine if body content is needed
-    body_props = {"textBody", "htmlBody", "bodyValues", "preview", "attachments"}
-    headers_only = properties is not None and not (body_props & set(properties))
+    try:
+        options = EmailGetOptions.model_validate(args)
+    except ValidationError as exc:
+        return "error", {"type": "invalidArguments", "description": str(exc)}
 
     # Group ids by folder
     folder_uids: dict[str, list[str]] = {}
@@ -190,9 +190,9 @@ def handle_email_get(
     email_list: list[dict[str, Any]] = []
 
     for folder, uids in folder_uids.items():
-        for msg in fetch_messages(pool, folder, uids, headers_only=headers_only):
+        for msg in fetch_messages(pool, folder, uids, headers_only=options.headers_only):
             try:
-                email_list.append(imap_message_to_jmap_email(msg, folder, properties))
+                email_list.append(imap_message_to_jmap_email(msg, folder, options))
             except ValueError:
                 # A message without a usable UID cannot satisfy a requested ID.
                 pass

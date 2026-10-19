@@ -20,3 +20,19 @@ Implement UTF-8 byte truncation and accurate `isTruncated`. Explicitly document
 Acceptance: offline HTML-only and multipart fixtures cover both booleans,
 multibyte truncation, default behavior and `hasAttachment` alone. Preserve
 non-marking fetches. No open overlap.
+
+## Implementation, 2026-10-19
+
+`EmailGetOptions` in `src/mailjail/imap/fetch.py` is validated by the handler
+and supplies both fetch requirements and conversion controls. Both value
+switches default to false; zero bytes means unlimited. Part descriptors remain
+available independently of the value switches, including the synthetic text
+part for HTML-only mail. UTF-8 truncation applies separately to each selected
+value and reports whether bytes were removed. `hasAttachment` requires a full
+non-marking fetch. Header projections avoid body conversion. `bodyStructure`
+remains unsupported and omitted; README.md and DESIGN.md describe the contract.
+
+Offline MIME tests cover all switch combinations, defaults, byte boundaries
+inside accented characters and emoji, exact limits, invalid option types,
+attachment-only projection, and body access forbidden during header projection.
+The initial focused run reproduced 33 failures before implementation.

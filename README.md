@@ -136,6 +136,18 @@ Email/get reports missing messages by complete `FOLDER:UID` ID, even when
 folders share a UID. Email/get and attachment downloads never mark messages as read;
 a missing message or attachment part returns `blobNotFound` on download.
 
+Email/get's `fetchTextBodyValues` and `fetchHTMLBodyValues` options are booleans
+and default to false. Set either to true to include the corresponding entries
+in `bodyValues`; requesting `textBody` or `htmlBody` still returns part descriptors.
+HTML-only mail also has a generated plain-text part. `maxBodyValueBytes` is a
+non-negative integer, default 0 for unlimited, applied separately to each selected
+value in UTF-8 bytes without splitting characters. `isTruncated` reports whether
+content was removed. Invalid option types or negative limits return
+`invalidArguments`. Earlier versions ignored these options and always included
+body values. Clients that need values must now set the appropriate switch.
+`bodyStructure` is unsupported and omitted. A `hasAttachment`-only projection
+fetches the message body so the attachment flag remains accurate.
+
 ## Smoke test
 
 Run against the deployed service with plain `curl` (what the agent user
