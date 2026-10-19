@@ -71,6 +71,15 @@ xh POST http://127.0.0.1:8895/jmap \
 ]}
 ```
 
+Each query searches one folder. Put `inMailbox` at the top level or in
+an `AND`; without it the query searches INBOX only. `inMailbox` inside
+`OR`/`NOT`, two different folders, `inMailboxOtherThan` and unknown
+filter properties (such as `header`) return `unsupportedFilter`; run
+one query per folder instead. `after`/`before` compare whole days.
+Sort by `receivedAt`, `sentAt`, `from`, `subject` or `size`. If the
+server lacks IMAP SORT, only a single `receivedAt` comparator works
+and others return `unsupportedSort`.
+
 ### Mark a thread `$seen` and add a custom keyword
 
 ```json
@@ -129,6 +138,8 @@ xh GET "http://127.0.0.1:8895/jmap/download/personal/INBOX:1234:0/invoice.pdf" \
 | `accountNotFound`        | `accountId` missing or not in the session resource             |
 | `forbidden`              | Method or sub-operation is not on the allowlist (e.g. delete)  |
 | `unknownMethod`          | Method name not implemented by this proxy                      |
+| `unsupportedFilter`      | `Email/query` filter outside the one-folder subset (see above) |
+| `unsupportedSort`        | `Email/query` sort the IMAP server cannot do (see above)       |
 | `invalidResultReference` | A `#` argument's `resultOf`, `name` or `path` finds no result  |
 | `serverFail`             | IMAP error or unexpected exception — surface verbatim to user  |
 

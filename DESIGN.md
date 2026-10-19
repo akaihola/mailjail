@@ -169,17 +169,43 @@ Returns list of mailboxes (IMAP folders).
 Search and filter messages. Returns ordered list of email IDs.
 
 **Filter properties** (RFC 8621 §4.4.1):
-- `inMailbox` — folder ID
+- `inMailbox` — folder ID; selects the folder to search (see below)
 - `from`, `to`, `cc`, `bcc` — address substring
 - `subject` — subject substring
-- `body` — full-text body search (IMAP `BODY` search key)
-- `after`, `before` — date range (maps to IMAP `SINCE`/`BEFORE`)
+- `body`, `text` — full-text search (IMAP `BODY`, `TEXT`)
+- `after`, `before` — date range (maps to IMAP `SINCE`/`BEFORE`, date only)
 - `hasKeyword`, `notKeyword` — filter by flag/keyword
-- `header` — raw header filter
+- `minSize`, `maxSize` — size (IMAP `LARGER`/`SMALLER`)
 
-**Sort properties**: `receivedAt`, `from`, `subject`, `size`.
+Any other filter property or operator fails with `unsupportedFilter`.
 
-**IMAP mapping**: `SEARCH` or `SORT` (if server supports SORT extension).
+**Sort properties**: `receivedAt` (`ARRIVAL`), `sentAt` (`DATE`), `from`,
+`subject`, `size`.
+
+**IMAP mapping**: one `SEARCH`, or one `SORT` when the server has the SORT
+extension, in one selected folder. `plan_query()` in `imap/search.py`
+translates the filter and picks the folder and sort in one pass, so no
+part of the filter is dropped. The handler returns an error before it
+borrows an IMAP connection.
+
+- **One folder.** The folder is the `inMailbox` at the top level or under
+  `AND` operators. Without `inMailbox` the query searches INBOX only,
+  not every mailbox as in JMAP. `inMailbox` under `OR` or `NOT`, two
+  different `inMailbox` values, and `inMailboxOtherThan` fail with
+  `unsupportedFilter`. Mailjail does not merge results across folders.
+- **Dates.** IMAP `SINCE`/`BEFORE` compare dates only, ignoring time and
+  time zone. `after` and `before` keep only the date of the timestamp:
+  `after` matches from the start of that day, `before` up to its start.
+- **Sort with the SORT extension.** Every comparator goes to IMAP `SORT`
+  in order, so secondary keys work. Any other sort property fails with
+  `unsupportedSort`.
+- **Sort without the SORT extension.** Only a single `receivedAt`
+  comparator works. It uses UID order as arrival order. UIDs grow as
+  messages are added to a folder, so a message moved in later sorts as
+  newest although it keeps its original arrival time. Every other sort
+  fails with `unsupportedSort`; mailjail does not sort fetched messages
+  itself.
+- **No sort.** Results come newest UID first.
 
 #### Email/get
 
@@ -309,6 +335,8 @@ Error types used:
 - `accountNotFound` — `accountId` missing or not configured
 - `tooLarge` — request exceeds limits
 - `unknownMethod` — JMAP method not supported by this proxy
+- `unsupportedFilter`, `unsupportedSort` — `Email/query` outside the
+  supported subset (see Email/query)
 
 ### 3.5 Convenience endpoint (non-JMAP)
 
@@ -552,6 +580,7 @@ JMAP mailbox ID = IMAP folder name (URL-encoded if needed).
 | `to`                 | `TO "value"`                        |
 | `subject`            | `SUBJECT "value"`                   |
 | `body`               | `BODY "value"`                      |
+| `text`               | `TEXT "value"`                      |
 | `after`              | `SINCE dd-Mon-yyyy`                 |
 | `before`             | `BEFORE dd-Mon-yyyy`               |
 | `hasKeyword`         | `KEYWORD $value` or `FLAGGED` etc.  |
@@ -560,7 +589,8 @@ JMAP mailbox ID = IMAP folder name (URL-encoded if needed).
 | `maxSize`            | `SMALLER n`                         |
 
 Compound filters: JMAP `operator: "AND"/"OR"/"NOT"` map to IMAP search
-logic operators.
+logic operators. `inMailbox` is not a SEARCH key: it selects the folder
+and works only at the top level or under `AND` (see Email/query).
 
 ## 8. Connection management
 

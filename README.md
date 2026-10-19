@@ -181,6 +181,12 @@ the folder tree with `totalEmails` counts, and `Email/get` returns five
 state if something is off. Last verified 2026-10-07 against the live
 service on gogo.
 
+`Email/query` searches one folder: the `inMailbox` at the top level or
+under `AND`, else INBOX. A filter or sort it cannot run that way fails
+with `unsupportedFilter` or `unsupportedSort` instead of returning other
+results. Date filters compare whole days. [DESIGN.md][design] lists the
+supported subset and the UID-order fallback for servers without SORT.
+
 ## Tests
 
 ```sh

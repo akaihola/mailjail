@@ -18,6 +18,8 @@ class JMAPErrorType(StrEnum):
     UNKNOWN_METHOD = "unknownMethod"
     ACCOUNT_NOT_FOUND = "accountNotFound"
     CANNOT_CALCULATE_CHANGES = "cannotCalculateChanges"
+    UNSUPPORTED_FILTER = "unsupportedFilter"
+    UNSUPPORTED_SORT = "unsupportedSort"
 
 
 class JMAPRequest(BaseModel):

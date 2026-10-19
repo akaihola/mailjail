@@ -1,9 +1,15 @@
-"""JMAP filter → IMAP SEARCH translation."""
+"""Plan a JMAP Email/query as one IMAP SEARCH or SORT in one folder."""
 
 import datetime
 from typing import Any
 
 from imap_tools import AND, NOT, OR
+from pydantic import BaseModel
+
+from ..models.core import JMAPErrorType
+
+# Folder searched when the filter names no inMailbox
+DEFAULT_FOLDER = "INBOX"
 
 # IMAP SORT criteria names for known JMAP sort properties
 _SORT_MAP: dict[str, str] = {
@@ -23,36 +29,102 @@ _KEYWORD_FLAG_MAP: dict[str, str] = {
 }
 
 
-def jmap_filter_to_imap(filter_cond: dict[str, Any]) -> Any:
-    """Translate a JMAP EmailFilterCondition dict to an imap_tools criterion.
+class QueryPlan(BaseModel):
+    """One IMAP command in one folder that answers an Email/query."""
 
-    Supports compound operators per RFC 8621 §4.4.1::
+    folder: str
+    criterion: str
+    sort: list[str]  # IMAP SORT keys; empty means SEARCH, which yields UID order
+    reverse: bool  # reverse the UID order SEARCH yields
 
-        {"operator": "AND" | "OR" | "NOT", "conditions": [<filter>, ...]}
 
-    Returns AND(all=True) for an empty filter or when only inMailbox is
-    specified (folder selection is handled externally via mb.folder.set()).
+class UnsupportedQuery(ValueError):
+    """A filter or sort that one IMAP command in one folder cannot answer."""
+
+    def __init__(self, type_: JMAPErrorType, description: str) -> None:
+        super().__init__(description)
+        self.type = type_
+
+
+def plan_query(
+    filter_cond: dict[str, Any],
+    sort: list[dict[str, Any]],
+    *,
+    server_sort: bool,
+) -> QueryPlan:
+    """Plan an Email/query, or raise UnsupportedQuery.
+
+    One pass over the filter both translates it and collects the folder, so
+    no condition is dropped. ``inMailbox`` is honoured where it bounds the
+    whole query (top level or under AND) and rejected under OR and NOT.
+    ``server_sort`` says whether the server has the IMAP SORT extension;
+    without it only a single receivedAt comparator is supported, by UID order.
+    """
+    folders: set[str] = set()
+    criterion = str(_criterion(filter_cond, folders, bounds_query=True))
+    if len(folders) > 1:
+        raise UnsupportedQuery(
+            JMAPErrorType.UNSUPPORTED_FILTER,
+            f"a query searches one mailbox; inMailbox names {sorted(folders)}",
+        )
+    folder = folders.pop() if folders else DEFAULT_FOLDER
+
+    if not sort:
+        return QueryPlan(folder=folder, criterion=criterion, sort=[], reverse=True)
+    if server_sort:
+        keys = [_sort_key(comparator) for comparator in sort]
+        return QueryPlan(folder=folder, criterion=criterion, sort=keys, reverse=False)
+    if len(sort) == 1 and sort[0].get("property") == "receivedAt":
+        reverse = not sort[0].get("isAscending", True)
+        return QueryPlan(folder=folder, criterion=criterion, sort=[], reverse=reverse)
+    raise UnsupportedQuery(
+        JMAPErrorType.UNSUPPORTED_SORT,
+        "without the IMAP SORT extension only one receivedAt comparator is supported",
+    )
+
+
+def _sort_key(comparator: dict[str, Any]) -> str:
+    """Translate one JMAP Comparator to an IMAP SORT key."""
+    prop = comparator.get("property")
+    key = _SORT_MAP.get(prop)
+    if key is None:
+        raise UnsupportedQuery(
+            JMAPErrorType.UNSUPPORTED_SORT, f"unsupported sort property: {prop!r}"
+        )
+    return key if comparator.get("isAscending", True) else f"REVERSE {key}"
+
+
+def _criterion(
+    filter_cond: dict[str, Any], folders: set[str], bounds_query: bool
+) -> Any:
+    """Translate a JMAP FilterOperator or FilterCondition to an imap_tools criterion.
+
+    Adds each inMailbox to ``folders``. ``bounds_query`` is false under OR
+    and NOT, where a folder condition would need a cross-folder search.
     """
     operator = filter_cond.get("operator")
     if operator is not None:
+        if operator not in ("AND", "OR", "NOT"):
+            raise UnsupportedQuery(
+                JMAPErrorType.UNSUPPORTED_FILTER,
+                f"unknown filter operator: {operator!r}",
+            )
+        extra = sorted(set(filter_cond) - {"operator", "conditions"})
+        if extra:
+            raise UnsupportedQuery(
+                JMAPErrorType.UNSUPPORTED_FILTER,
+                f"a filter with an operator takes only conditions, not {extra}",
+            )
+        bounds = bounds_query and operator == "AND"
         conditions = filter_cond.get("conditions") or []
-        sub = [jmap_filter_to_imap(c) for c in conditions]
+        sub = [_criterion(c, folders, bounds) for c in conditions]
+        if not sub:
+            # AND and NOT of no conditions match every message, OR matches none
+            return NOT(AND(all=True)) if operator == "OR" else AND(all=True)
         if operator == "AND":
-            if not sub:
-                return AND(all=True)
             return AND(*sub)
-        if operator == "OR":
-            if not sub:
-                return AND(all=True)
-            if len(sub) == 1:
-                return sub[0]
-            return OR(*sub)
-        if operator == "NOT":
-            if not sub:
-                return AND(all=True)
-            inner = sub[0] if len(sub) == 1 else OR(*sub)
-            return NOT(inner)
-        raise ValueError(f"unknown filter operator: {operator!r}")
+        inner = sub[0] if len(sub) == 1 else OR(*sub)
+        return inner if operator == "OR" else NOT(inner)
 
     kwargs: dict[str, Any] = {}
 
@@ -73,6 +145,7 @@ def jmap_filter_to_imap(filter_cond: dict[str, Any]) -> Any:
             case "text":
                 kwargs["text"] = value
             case "after":
+                # IMAP SINCE/BEFORE compare dates only: the time of day is dropped
                 dt = datetime.datetime.fromisoformat(value.replace("Z", "+00:00"))
                 kwargs["date_gte"] = dt.date()
             case "before":
@@ -95,36 +168,19 @@ def jmap_filter_to_imap(filter_cond: dict[str, Any]) -> Any:
             case "maxSize":
                 kwargs["size_lt"] = value
             case "inMailbox":
-                # Handled externally by mb.folder.set(); ignore here
-                pass
+                if not bounds_query:
+                    raise UnsupportedQuery(
+                        JMAPErrorType.UNSUPPORTED_FILTER,
+                        "inMailbox under OR or NOT would need a cross-folder search",
+                    )
+                folders.add(value)
             case _:
-                # Unknown filter properties are silently ignored for forward compatibility
-                pass
+                raise UnsupportedQuery(
+                    JMAPErrorType.UNSUPPORTED_FILTER,
+                    f"unsupported filter property: {key!r}",
+                )
 
     if not kwargs:
         return AND(all=True)
 
     return AND(**kwargs)
-
-
-def jmap_sort_to_imap(sort: list[dict[str, Any]]) -> str | None:
-    """Translate JMAP sort spec to IMAP SORT criteria string, or None if empty/unsupported.
-
-    Phase 1: always return None (client-side sort on receivedAt).
-    Phase 3 can enable server-side SORT if the server advertises the capability.
-    """
-    if not sort:
-        return None
-
-    # Build IMAP SORT criteria string for the first sort key
-    first = sort[0]
-    prop = first.get("property", "receivedAt")
-    ascending = first.get("isAscending", True)
-
-    imap_key = _SORT_MAP.get(prop)
-    if imap_key is None:
-        return None
-
-    if ascending:
-        return imap_key
-    return f"REVERSE {imap_key}"

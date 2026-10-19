@@ -21,3 +21,23 @@ Acceptance: offline query-handler tests cover SORT present/absent, ascending
 and descending, secondary sort keys and nested folder conditions. Translator
 and selector cannot independently discard different parts of the filter.
 No open overlap.
+
+## Decisions, 2026-10-19
+
+- `plan_query()` in `src/mailjail/imap/search.py` is the only entry point. It
+  translates the filter and collects `inMailbox` in one recursive pass and
+  returns folder, SEARCH criterion and sort decision as one `QueryPlan`. The
+  former `jmap_filter_to_imap()`/`jmap_sort_to_imap()` helpers were
+  replaced by private helpers that only `plan_query()` calls.
+- A filter object with `operator` and any key besides `conditions` fails
+  with `unsupportedFilter`. An `OR` without conditions matches no message.
+- `inMailbox` counts at the top level and under `AND`. Under `OR`/`NOT`, with
+  two different values, or as `inMailboxOtherThan`, it fails with
+  `unsupportedFilter`.
+- A filter without `inMailbox` still searches INBOX only. This is the
+  existing single-folder subset, now documented as a deviation from JMAP.
+- Unknown filter properties (e.g. `header`) now fail with `unsupportedFilter`
+  instead of being ignored, so the translator drops nothing either.
+- With the SORT extension every comparator is sent. Without it, only one
+  `receivedAt` comparator is supported, by UID order; the default without a
+  sort stays newest UID first.

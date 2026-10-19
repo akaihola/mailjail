@@ -12,7 +12,7 @@ from ..imap.fetch import (
     folder_uid_to_email_id,
     imap_message_to_jmap_email,
 )
-from ..imap.search import jmap_filter_to_imap, jmap_sort_to_imap
+from ..imap.search import UnsupportedQuery, plan_query
 
 
 class EmailAddress(BaseModel):
@@ -64,53 +64,36 @@ def handle_email_query(
     args: dict[str, Any],
     pool: IMAPPool,
 ) -> tuple[str, dict[str, Any]]:
-    """Execute Email/query.
+    """Execute Email/query as the one-folder IMAP command its plan describes.
 
-    1. Extract inMailbox (default 'INBOX'), filter_cond, sort, limit, position.
-    2. Acquire connection; mb.folder.set(folder).
-    3. Build criterion via jmap_filter_to_imap(filter_cond).
-    4. Call mb.uids(criterion) → list of uid strings.
-    5. Apply position + limit slicing.
-    6. Map uids to email IDs via folder_uid_to_email_id.
-    7. Return ("Email/query", {"accountId":..., "ids":[...], "total":..., "position":...})
+    An unsupported filter or sort returns an ``unsupportedFilter`` or
+    ``unsupportedSort`` error before any IMAP connection is borrowed.
     """
     account_id = args["accountId"]
-    filter_cond = args.get("filter", {})
-    sort_spec = args.get("sort") or []
     limit = args.get("limit", 256)
     position = args.get("position", 0)
-
-    # Extract folder from filter or default to INBOX
-    folder = filter_cond.get("inMailbox", "INBOX")
-    criterion = jmap_filter_to_imap(filter_cond)
-
-    server_sort: str | None = None
-    if sort_spec and pool.has_capability("SORT"):
-        server_sort = jmap_sort_to_imap(sort_spec)
+    try:
+        plan = plan_query(
+            args.get("filter") or {},
+            args.get("sort") or [],
+            server_sort=pool.has_capability("SORT"),
+        )
+    except UnsupportedQuery as exc:
+        return "error", {"type": str(exc.type), "description": str(exc)}
 
     with pool.connection() as mb:
-        mb.folder.set(folder)
-        if server_sort is not None:
-            uid_list = list(mb.uids(criterion, sort=server_sort))
-        else:
-            uid_list = list(mb.uids(criterion))
+        mb.folder.set(plan.folder)
+        uid_list = list(mb.uids(plan.criterion, sort=plan.sort))
+    if plan.reverse:
+        uid_list.reverse()
 
-    total = len(uid_list)
-
-    if server_sort is None:
-        # Client-side fallback: natural UID order, newest first.
-        uid_list = list(reversed(uid_list))
-
-    # Apply pagination
     sliced = uid_list[position : position + limit]
-    ids = [folder_uid_to_email_id(folder, uid) for uid in sliced]
-
     return (
         "Email/query",
         {
             "accountId": account_id,
-            "ids": ids,
-            "total": total,
+            "ids": [folder_uid_to_email_id(plan.folder, uid) for uid in sliced],
+            "total": len(uid_list),
             "position": position,
         },
     )
