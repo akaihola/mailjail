@@ -8,10 +8,10 @@ Rules for TASKS.md usage are at the bottom of the file.
 
 ## Scheduled
 
-- [8] Put body selection and truncation in the fetch conversion contract
-  <!-- hai:{"id":"simple-00532c7f-6aad-40b9-b102-1609674839f6","labels":["steward"],"createdAt":"2026-10-19T14:11:42.621Z","updatedAt":"2026-10-19T15:54:53.609Z"} -->
-
 ## In Progress
+
+- [~] [8] Put body selection and truncation in the fetch conversion contract
+      <!-- hai:{"id":"simple-00532c7f-6aad-40b9-b102-1609674839f6","labels":["steward"],"createdAt":"2026-10-19T14:11:42.621Z","updatedAt":"2026-10-19T15:55:09.021Z"} -->
 
 - [~] [7] Make a query plan own folder selection and sort support
       <!-- hai:{"id":"simple-4924e198-f45b-4d3c-a9b7-5cc4217f2ce2","labels":["steward"],"createdAt":"2026-10-19T14:11:42.189Z","updatedAt":"2026-10-19T15:53:30.559Z"} -->
