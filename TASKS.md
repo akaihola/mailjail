@@ -6,6 +6,10 @@ Rules for TASKS.md usage are at the bottom of the file.
 
 ## Ordered backlog
 
+- [1] Review mailjail's architecture for deep modules and over-engineering, and
+  draft the fixes
+  <!-- hai:{"id":"simple-debf051e-7bb3-4704-8414-79b444def535","labels":["steward"],"createdAt":"2026-10-19T08:08:28.055Z","updatedAt":"2026-10-19T08:08:28.055Z"} -->
+
 ## Scheduled
 
 ## In Progress
@@ -418,6 +422,10 @@ Acceptance tests:
       `cryptography` behind the `thunderbird` extra; remove standalone helper
       script (2026-04-26).
   <!-- hai:{"id":"simple-4039dfa2e04b8e8a","updatedAt":"2026-10-17T07:11:27.145Z"} -->
+
+[1]: docs/tasks/1-review-mailjail-s-architecture-for-deep-modules-and-over-engineering-a.md
+
+<!-- hai:reserved-numbers:1 -->
 
 ## Rules
 
