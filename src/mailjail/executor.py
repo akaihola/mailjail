@@ -111,16 +111,26 @@ class Executor:
         self._registry = registry
 
     def execute(self, request: JMAPRequest) -> JMAPResponse:
-        """Execute all method calls in order; resolve result refs; return JMAPResponse."""
+        """Execute all method calls in order; a failed call fails on its own."""
         responses: list[Invocation] = []
         for method, args, call_id in request.methodCalls:
-            resolved_args = resolve_args(args, responses)
-            invocation = self._dispatch(method, resolved_args, call_id)
-            responses.append(invocation)
+            responses.append(self._dispatch(method, args, call_id, responses))
         return JMAPResponse(methodResponses=responses)
 
-    def _dispatch(self, method: str, args: dict[str, Any], call_id: str) -> Invocation:
-        """Route method to handler; enforce policy; return Invocation."""
+    def _dispatch(
+        self,
+        method: str,
+        args: dict[str, Any],
+        call_id: str,
+        previous_responses: list[Invocation],
+    ) -> Invocation:
+        """Enforce policy, resolve result refs, route to handler; return Invocation.
+
+        Every failure becomes an error invocation carrying ``call_id``: bad
+        references and accounts are the client's, anything raised while
+        acquiring IMAP or handling the call is ``serverFail``. Only handlers
+        that touch IMAP acquire the account's pool.
+        """
         if method in BLOCKED_METHODS:
             return make_error_invocation(
                 JMAPErrorType.FORBIDDEN,
@@ -135,6 +145,15 @@ class Executor:
                 call_id,
             )
 
+        try:
+            args = resolve_args(args, previous_responses)
+        except (LookupError, TypeError, ValueError, AttributeError) as exc:
+            return make_error_invocation(
+                JMAPErrorType.INVALID_RESULT_REFERENCE,
+                str(exc),
+                call_id,
+            )
+
         account_id = args.get("accountId")
         if not isinstance(account_id, str) or not account_id:
             return make_error_invocation(
@@ -142,29 +161,27 @@ class Executor:
                 "accountId is required and must be a non-empty string",
                 call_id,
             )
-        try:
-            context = self._registry.get(account_id)
-        except KeyError:
+        if account_id not in self._registry:
             return make_error_invocation(
                 JMAPErrorType.ACCOUNT_NOT_FOUND,
                 f"Unknown accountId: {account_id!r}",
                 call_id,
             )
 
-        pool = context.pool
-        settings = context.settings
-
         try:
             if method == "Mailbox/get":
+                pool = self._registry.get(account_id).pool
                 name, result = handle_mailbox_get(args, pool)
             elif method == "Email/query":
+                pool = self._registry.get(account_id).pool
                 name, result = handle_email_query(args, pool)
             elif method == "Email/get":
+                pool = self._registry.get(account_id).pool
                 name, result = handle_email_get(args, pool)
             elif method == "Email/changes":
-                name, result = handle_email_changes(args, pool)
+                name, result = handle_email_changes(args)
             elif method == "Thread/get":
-                name, result = handle_thread_get(args, pool)
+                name, result = handle_thread_get(args)
             elif method == "Email/set":
                 violations = check_email_set(args)
                 if violations:
@@ -173,8 +190,10 @@ class Executor:
                         "; ".join(violations),
                         call_id,
                     )
-                name, result = handle_email_set(args, pool, settings)
+                context = self._registry.get(account_id)
+                name, result = handle_email_set(args, context.pool, context.settings)
             elif method == "EmailSubmission/set":
+                settings = self._registry.settings_for(account_id)
                 name, result = handle_email_submission_set(args, settings)
             else:
                 # Should not reach here given the checks above

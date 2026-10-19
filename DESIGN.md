@@ -283,10 +283,15 @@ Follow JMAP error format (RFC 8620 §3.6.1):
 }
 ```
 
+Each method call fails on its own: its error keeps the call's ID and the
+calls after it still run.
+
 Error types used:
 - `forbidden` — operation blocked by policy (destroy, move, send)
 - `invalidArguments` — malformed request
-- `serverFail` — IMAP backend error
+- `invalidResultReference` — a `#`-prefixed argument names no earlier
+  response, or its path does not resolve in it
+- `serverFail` — IMAP backend error, including a failed pool login
 - `notFound` — message ID not found
 - `accountNotFound` — `accountId` missing or not configured
 - `tooLarge` — request exceeds limits
@@ -554,7 +559,9 @@ async/sync bridging.
 `registry.get(account_id)` call under a per-account lock so a slow login does
 not block other accounts. Construction failures are not cached: a subsequent
 `get` for the same account retries pool creation. A failure for one account
-never prevents `get()` for any other.
+never prevents `get()` for any other. The executor calls `get` only for
+methods that touch IMAP; `Thread/get`, `Email/changes` and the intercepted
+`EmailSubmission/set` answer from configuration alone.
 
 On shutdown the entry point calls `registry.close()`, which iterates every
 materialised pool and drains it; never-touched accounts have no pool to close.

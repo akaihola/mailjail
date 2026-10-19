@@ -115,10 +115,7 @@ def handle_email_query(
     )
 
 
-def handle_email_changes(
-    args: dict[str, Any],
-    pool: IMAPPool,
-) -> tuple[str, dict[str, Any]]:
+def handle_email_changes(args: dict[str, Any]) -> tuple[str, dict[str, Any]]:
     """Email/changes — always reports the cache as invalid.
 
     The proxy does not maintain CONDSTORE/MODSEQ state. Per RFC 8620 §5.2,

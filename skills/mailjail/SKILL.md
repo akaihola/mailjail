@@ -124,12 +124,16 @@ xh GET "http://127.0.0.1:8895/jmap/download/personal/INBOX:1234:0/invoice.pdf" \
 
 ## Errors you'll see
 
-| `type`             | What it means                                                |
-|--------------------|--------------------------------------------------------------|
-| `accountNotFound`  | `accountId` missing or not in the session resource           |
-| `forbidden`        | Method or sub-operation is not on the allowlist (e.g. delete)|
-| `unknownMethod`    | Method name not implemented by this proxy                    |
-| `serverFail`       | IMAP error or unexpected exception — surface verbatim to user|
+| `type`                   | What it means                                                  |
+|--------------------------|----------------------------------------------------------------|
+| `accountNotFound`        | `accountId` missing or not in the session resource             |
+| `forbidden`              | Method or sub-operation is not on the allowlist (e.g. delete)  |
+| `unknownMethod`          | Method name not implemented by this proxy                      |
+| `invalidResultReference` | A `#` argument's `resultOf`, `name` or `path` finds no result  |
+| `serverFail`             | IMAP error or unexpected exception — surface verbatim to user  |
+
+Each error belongs to one method call and carries that call's ID; the calls
+after it in the same request still run.
 
 ## Health & observability
 

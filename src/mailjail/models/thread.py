@@ -9,13 +9,8 @@ out of scope for this proxy.
 
 from typing import Any
 
-from ..imap.connection import IMAPPool
 
-
-def handle_thread_get(
-    args: dict[str, Any],
-    pool: IMAPPool,  # noqa: ARG001 — pool unused in the simplified mapping
-) -> tuple[str, dict[str, Any]]:
+def handle_thread_get(args: dict[str, Any]) -> tuple[str, dict[str, Any]]:
     """Return one-element threads for each requested threadId."""
     account_id = args["accountId"]
     ids: list[str] = args.get("ids") or []

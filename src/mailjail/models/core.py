@@ -11,6 +11,7 @@ Invocation = tuple[str, dict[str, Any], str]
 class JMAPErrorType(StrEnum):
     FORBIDDEN = "forbidden"
     INVALID_ARGUMENTS = "invalidArguments"
+    INVALID_RESULT_REFERENCE = "invalidResultReference"
     SERVER_FAIL = "serverFail"
     NOT_FOUND = "notFound"
     TOO_LARGE = "tooLarge"

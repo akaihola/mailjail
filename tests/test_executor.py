@@ -2,6 +2,8 @@
 
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from mailjail.executor import (
     Executor,
     _json_pointer_get,
@@ -9,6 +11,7 @@ from mailjail.executor import (
     resolve_result_ref,
 )
 from mailjail.models.core import JMAPRequest
+from mailjail.registry import AccountRegistry
 
 from .conftest import make_account_settings, make_registry_with_pool
 
@@ -251,3 +254,181 @@ def test_email_submission_set_logs_account_username(caplog) -> None:
     assert method == "EmailSubmission/set"
     assert body["mailjail:intercepted"] is True
     assert any("test@example.com" in rec.message for rec in caplog.records)
+
+
+# --- Per-call error and connection boundary ---
+
+
+def _offline_executor(pool_factory: MagicMock) -> Executor:
+    """Executor whose only account has no pool yet; IMAP comes from the factory."""
+    registry = AccountRegistry(
+        {"work": make_account_settings()}, pool_factory=pool_factory
+    )
+    return Executor(registry=registry)
+
+
+def _execute(executor: Executor, method_calls: list[list]) -> list:
+    request = JMAPRequest.model_validate(
+        {
+            "using": ["urn:ietf:params:jmap:core", "urn:ietf:params:jmap:mail"],
+            "methodCalls": method_calls,
+        }
+    )
+    return executor.execute(request).methodResponses
+
+
+@pytest.mark.parametrize(
+    ("middle_call", "error_type", "factory_calls"),
+    [
+        pytest.param(
+            [
+                "Email/get",
+                {
+                    "accountId": "work",
+                    "#ids": {"resultOf": "nope", "name": "Email/query", "path": "/ids"},
+                },
+                "c1",
+            ],
+            "invalidResultReference",
+            0,
+            id="unresolvable-reference",
+        ),
+        pytest.param(
+            ["Mailbox/get", {"accountId": "work"}, "c1"],
+            "serverFail",
+            1,
+            id="failing-pool-factory",
+        ),
+    ],
+)
+def test_failed_middle_call_keeps_call_ids_and_later_calls_run(
+    middle_call: list, error_type: str, factory_calls: int
+) -> None:
+    factory = MagicMock(side_effect=ConnectionError("IMAP unreachable"))
+    executor = _offline_executor(factory)
+
+    responses = _execute(
+        executor,
+        [
+            ["Thread/get", {"accountId": "work", "ids": ["INBOX:1"]}, "c0"],
+            middle_call,
+            [
+                "Thread/get",
+                {
+                    "accountId": "work",
+                    "#ids": {
+                        "resultOf": "c0",
+                        "name": "Thread/get",
+                        "path": "/list/0/emailIds",
+                    },
+                },
+                "c2",
+            ],
+        ],
+    )
+
+    assert [call_id for _, _, call_id in responses] == ["c0", "c1", "c2"]
+    method, body, _ = responses[1]
+    assert method == "error"
+    assert body["type"] == error_type
+    method, body, _ = responses[2]
+    assert method == "Thread/get"
+    assert body["list"] == [{"id": "INBOX:1", "emailIds": ["INBOX:1"]}]
+    assert factory.call_count == factory_calls
+
+
+@pytest.mark.parametrize(
+    "ref",
+    [
+        pytest.param("c0", id="not-an-object"),
+        pytest.param({"resultOf": "c0", "name": "Thread/get"}, id="no-path"),
+        pytest.param(
+            {"resultOf": "c0", "name": "Thread/get", "path": "list"}, id="relative-path"
+        ),
+        pytest.param(
+            {"resultOf": "c0", "name": "Thread/get", "path": "/list/9"},
+            id="index-out-of-range",
+        ),
+        pytest.param(
+            {"resultOf": "c0", "name": "Thread/get", "path": "/list/x"},
+            id="non-numeric-index",
+        ),
+        pytest.param(
+            {"resultOf": "c0", "name": "Thread/get", "path": 5}, id="int-path"
+        ),
+    ],
+)
+def test_malformed_result_reference_returns_invalid_result_reference(
+    ref: object,
+) -> None:
+    executor = _offline_executor(MagicMock())
+
+    responses = _execute(
+        executor,
+        [
+            ["Thread/get", {"accountId": "work", "ids": []}, "c0"],
+            ["Thread/get", {"accountId": "work", "#ids": ref}, "c1"],
+        ],
+    )
+
+    method, body, call_id = responses[1]
+    assert (method, body["type"], call_id) == ("error", "invalidResultReference", "c1")
+
+
+def test_pool_free_methods_never_invoke_pool_factory() -> None:
+    factory = MagicMock(side_effect=AssertionError("pool factory must not run"))
+    executor = _offline_executor(factory)
+
+    responses = _execute(
+        executor,
+        [
+            ["Thread/get", {"accountId": "work", "ids": ["INBOX:1"]}, "c0"],
+            ["Email/changes", {"accountId": "work", "sinceState": "x"}, "c1"],
+            [
+                "EmailSubmission/set",
+                {"accountId": "work", "create": {"s1": {"emailId": "Drafts:1"}}},
+                "c2",
+            ],
+        ],
+    )
+
+    factory.assert_not_called()
+    assert [(method, call_id) for method, _, call_id in responses] == [
+        ("Thread/get", "c0"),
+        ("error", "c1"),
+        ("EmailSubmission/set", "c2"),
+    ]
+    assert responses[1][1]["type"] == "cannotCalculateChanges"
+    assert responses[2][1]["mailjail:intercepted"] is True
+
+
+def test_unknown_account_on_pool_free_method_returns_account_not_found() -> None:
+    factory = MagicMock()
+    executor = _offline_executor(factory)
+
+    responses = _execute(
+        executor,
+        [
+            [
+                "EmailSubmission/set",
+                {"accountId": "ghost", "create": {"s1": {"emailId": "Drafts:1"}}},
+                "c0",
+            ],
+        ],
+    )
+
+    method, body, call_id = responses[0]
+    assert (method, body["type"], call_id) == ("error", "accountNotFound", "c0")
+    factory.assert_not_called()
+
+
+def test_forbidden_email_set_never_invokes_pool_factory() -> None:
+    factory = MagicMock()
+    executor = _offline_executor(factory)
+
+    responses = _execute(
+        executor, [["Email/set", {"accountId": "work", "destroy": ["INBOX:1"]}, "c0"]]
+    )
+
+    assert responses[0][1]["type"] == "forbidden"
+    factory.assert_not_called()
