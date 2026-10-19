@@ -43,14 +43,14 @@ Python 3.12+ is required. Runtime dependencies: `imap_tools`, `waitress`,
 Configuration is TOML, located by default at
 `~/.config/mailjail/config.toml`. Each IMAP account is its own
 `[accounts.<id>]` section, and `primary_account` selects which account
-JMAP clients see as their default.
+JMAP clients see as their default. Put `primary_account` before any table header.
 
 ```toml
+primary_account = "personal"
+
 [server]
 host = "127.0.0.1"
 port = 8895
-
-primary_account = "personal"
 
 [accounts.personal]
 host = "imap.fastmail.com"
@@ -80,6 +80,11 @@ size = 2
 provider = "himalaya"
 himalaya_account = "work"
 ```
+
+The auth fields `password_file`, `himalaya_config_path`, and `thunderbird_dir`
+accept absolute paths, `~` paths expanded for the service user, and relative
+paths resolved from the service's working directory. Environment variables such
+as `$HOME` and `${HOME}` remain literal; use `~` for the home directory.
 
 Per-account credentials can come from a password file, a himalaya keyring
 account, or a Thunderbird profile (in-process NSS decryption — install

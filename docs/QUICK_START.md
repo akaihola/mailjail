@@ -21,7 +21,7 @@ ssl = true
 username = "you@example.com"
 [accounts.personal.auth]
 provider = "thunderbird"
-thunderbird_dir = "$HOME/.thunderbird"
+thunderbird_dir = "~/.thunderbird"
 thunderbird_profile = "default"
 [accounts.personal.pool]
 size = 3

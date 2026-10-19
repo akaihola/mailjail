@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import tomllib
 from pathlib import Path
 from textwrap import dedent
 
@@ -15,6 +16,85 @@ from mailjail.config import (
     read_himalaya_credentials,
     read_thunderbird_login,
 )
+
+
+@pytest.mark.parametrize("document", ["README.md", "DESIGN.md", "docs/QUICK_START.md"])
+def test_documented_config_has_root_primary_account(document: str) -> None:
+    text = (Path(__file__).resolve().parents[1] / document).read_text()
+    if document.endswith("QUICK_START.md"):
+        example = text.split("<<'EOF'\n", 1)[1].split("\nEOF", 1)[0]
+    else:
+        text = text.split("## 9. Configuration", 1)[-1]
+        example = text.split("```toml\n", 1)[1].split("```", 1)[0]
+
+    raw = tomllib.loads(example)
+
+    assert raw["primary_account"] in raw["accounts"]
+    assert "primary_account" not in raw["server"]
+    assert "$HOME" not in example
+
+
+@pytest.mark.parametrize(
+    "path_syntax", ["tilde", "absolute", "relative", "literal-env"]
+)
+@pytest.mark.parametrize(
+    ("provider", "field", "name"),
+    [
+        ("password-file", "password_file", "password"),
+        ("himalaya", "himalaya_config_path", "himalaya.toml"),
+        ("thunderbird", "thunderbird_dir", "thunderbird"),
+    ],
+)
+def test_configured_credential_paths(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    path_syntax: str,
+    provider: str,
+    field: str,
+    name: str,
+) -> None:
+    from tests.test_thunderbird import synthetic_profile_factory
+
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.chdir(tmp_path)
+    base = tmp_path / "$HOME" if path_syntax == "literal-env" else tmp_path
+    base.mkdir(exist_ok=True)
+    credential_path = base / name
+    password = "my-secret-imap-password"
+    if provider == "password-file":
+        credential_path.write_text(password)
+    elif provider == "himalaya":
+        credential_path.write_text(HIMALAYA_CONFIG)
+        password = "secret-from-himalaya"
+    else:
+        credential_path.mkdir()
+        profile = synthetic_profile_factory(credential_path)
+        profile.rename(credential_path / "abcd.default-release")
+        (credential_path / "profiles.ini").write_text(PROFILES_INI)
+
+    configured_path = {
+        "tilde": f"~/{name}",
+        "absolute": str(credential_path),
+        "relative": name,
+        "literal-env": f"$HOME/{name}",
+    }[path_syntax]
+    config_path = tmp_path / "mailjail.toml"
+    config_path.write_text(
+        dedent(f'''\
+        primary_account = "test"
+        [accounts.test]
+        username = "user@example.com"
+        [accounts.test.auth]
+        provider = "{provider}"
+        {field} = "{configured_path}"
+        himalaya_account = "testuser"
+        ''')
+    )
+
+    settings = load_settings(config_path)
+
+    assert settings.accounts["test"].imap_password == password
+
 
 HIMALAYA_CONFIG = """
 [accounts.testuser]

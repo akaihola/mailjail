@@ -633,10 +633,16 @@ thunderbird_dir = "~/.thunderbird"
 # thunderbird_username_hint = "me@personal.example"
 ```
 
-`primary_account` is required and must name an account defined under
-`[accounts.<id>]`; it sources `primaryAccounts` in the JMAP session resource
+`primary_account` must precede the first table header. It is required and must
+name an account defined under `[accounts.<id>]`; it sources `primaryAccounts` in the JMAP session resource
 and decides overall `/healthz` status. Each account is fully independent — its
 own credentials, IMAP host, drafts folder, and credential provider.
+
+The configured auth paths `password_file`, `himalaya_config_path`, and
+`thunderbird_dir` use `Path.expanduser()` when consumed. Absolute paths stay
+unchanged, `~` refers to the service user's home, and relative paths use the
+service's working directory. Environment-variable interpolation is not supported;
+`$HOME` and `${HOME}` in a path are literal text.
 
 **Env-var overrides are server-level only**: `MAILJAIL_SERVER_HOST` and
 `MAILJAIL_SERVER_PORT`. Per-account fields (passwords, hosts, provider config)

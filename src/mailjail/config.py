@@ -133,11 +133,11 @@ def load_settings(config_path: Path = DEFAULT_CONFIG_PATH) -> Settings:
 
     Required schema:
 
+        primary_account = "work"
+
         [server]               # optional
         host = "127.0.0.1"
         port = 8895
-
-        primary_account = "work"
 
         [accounts.work]
         host = "mail.example.com"
@@ -273,7 +273,9 @@ def _build_account(account_id: str, section: dict[str, Any]) -> AccountSettings:
 def _apply_mailjail_credentials(data: dict[str, Any]) -> None:
     password_path_str = data.get("password_file")
     password_path = (
-        Path(password_path_str) if password_path_str else DEFAULT_PASSWORD_PATH
+        Path(password_path_str).expanduser()
+        if password_path_str
+        else DEFAULT_PASSWORD_PATH
     )
     if password_path.exists():
         password = password_path.read_text().strip()
@@ -284,7 +286,7 @@ def _apply_mailjail_credentials(data: dict[str, Any]) -> None:
 def _apply_himalaya_credentials(data: dict[str, Any]) -> None:
     config_path = Path(
         data.get("himalaya_config_path", str(DEFAULT_HIMALAYA_CONFIG_PATH))
-    )
+    ).expanduser()
     account_name = data.get("himalaya_account", "")
     creds = read_himalaya_credentials(config_path, account_name)
     if not data.get("imap_host") and creds.host:
@@ -303,7 +305,9 @@ def _apply_thunderbird_credentials(data: dict[str, Any]) -> None:
             "package. Install with: pip install 'mailjail[thunderbird]'"
         ) from exc
 
-    thunderbird_dir = Path(data.get("thunderbird_dir", str(DEFAULT_THUNDERBIRD_DIR)))
+    thunderbird_dir = Path(
+        data.get("thunderbird_dir", str(DEFAULT_THUNDERBIRD_DIR))
+    ).expanduser()
     profile_name = data.get("thunderbird_profile")
     username_hint = data.get("thunderbird_username_hint") or data.get("imap_username")
     hostname_hint = data.get("thunderbird_hostname_hint") or data.get("imap_host")
