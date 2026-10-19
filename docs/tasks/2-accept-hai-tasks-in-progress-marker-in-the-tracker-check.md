@@ -8,6 +8,11 @@ worker on [1] stopped there at 11:32 on 2026-10-19; the steward committed its
 start move without the marker (`ea473a8`). pi-akaihola fixed the same mismatch
 in its own checker (pi-akaihola [3], `557adee`).
 
+**Your own start move:** `hai-tasks update` will write `- [~] [2]`, which the
+check rejects until this issue lands. Delete the `[~] ` by hand (and align the
+`hai:` comment under the title, two spaces in) before running the check and
+committing the start move.
+
 ## What to do
 
 1. Let `_BULLET` accept `[~]` as well as `[ ]` and `[x]`.
