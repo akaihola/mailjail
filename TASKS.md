@@ -6,6 +6,15 @@ Rules for TASKS.md usage are at the bottom of the file.
 
 ## Ordered backlog
 
+- [3] Make the documented configuration loadable
+  <!-- hai:{"id":"simple-ef737507-3adf-4b1e-aa6e-2ad0f53feedd","labels":["steward"],"createdAt":"2026-10-19T11:18:15.537Z","updatedAt":"2026-10-19T11:18:15.537Z"} -->
+
+- [4] Give each invocation its own error and connection boundary
+  <!-- hai:{"id":"simple-63ce8edd-777b-4c86-a23b-7b8e9e0a3671","labels":["steward"],"createdAt":"2026-10-19T11:18:16.133Z","updatedAt":"2026-10-19T11:18:16.133Z"} -->
+
+- [5] Hide selected-folder fetch mechanics behind one tested operation
+  <!-- hai:{"id":"simple-c61887b2-cbca-44a7-979c-01523005c888","labels":["steward"],"createdAt":"2026-10-19T11:18:16.725Z","updatedAt":"2026-10-19T11:18:16.725Z"} -->
+
 ## Scheduled
 
 ## In Progress
@@ -428,9 +437,15 @@ Acceptance tests:
 
 [1]: docs/tasks/1-review-mailjail-s-architecture-for-deep-modules-and-over-engineering-a.md
 
-<!-- hai:reserved-numbers:1,2 -->
+<!-- hai:reserved-numbers:1,2,3,4,5 -->
 
 [2]: docs/tasks/2-accept-hai-tasks-in-progress-marker-in-the-tracker-check.md
+
+[3]: docs/tasks/3-make-the-documented-configuration-loadable.md
+
+[4]: docs/tasks/4-give-each-invocation-its-own-error-and-connection-boundary.md
+
+[5]: docs/tasks/5-hide-selected-folder-fetch-mechanics-behind-one-tested-operation.md
 
 ## Rules
 
