@@ -12,21 +12,21 @@ Rules for TASKS.md usage are at the bottom of the file.
 
 ## Completed / Accepted
 
-- [ ] [4] Give each invocation its own error and connection boundary
-      <!-- hai:{"id":"simple-63ce8edd-777b-4c86-a23b-7b8e9e0a3671","labels":["steward"],"createdAt":"2026-10-19T11:18:16.133Z","updatedAt":"2026-10-19T12:33:42.915Z"} -->
+- [x] [4] Give each invocation its own error and connection boundary
+      <!-- hai:{"id":"simple-63ce8edd-777b-4c86-a23b-7b8e9e0a3671","labels":["steward"],"createdAt":"2026-10-19T11:18:16.133Z","updatedAt":"2026-10-19T14:05:47.040Z"} -->
 
-- [ ] [5] Hide selected-folder fetch mechanics behind one tested operation
-      <!-- hai:{"id":"simple-c61887b2-cbca-44a7-979c-01523005c888","labels":["steward"],"createdAt":"2026-10-19T11:18:16.725Z","updatedAt":"2026-10-19T12:32:47.973Z"} -->
+- [x] [5] Hide selected-folder fetch mechanics behind one tested operation
+      <!-- hai:{"id":"simple-c61887b2-cbca-44a7-979c-01523005c888","labels":["steward"],"createdAt":"2026-10-19T11:18:16.725Z","updatedAt":"2026-10-19T14:05:47.428Z"} -->
 
-- [ ] [3] Make the documented configuration loadable
-      <!-- hai:{"id":"simple-ef737507-3adf-4b1e-aa6e-2ad0f53feedd","labels":["steward"],"createdAt":"2026-10-19T11:18:15.537Z","updatedAt":"2026-10-19T12:28:21.440Z"} -->
+- [x] [3] Make the documented configuration loadable
+      <!-- hai:{"id":"simple-ef737507-3adf-4b1e-aa6e-2ad0f53feedd","labels":["steward"],"createdAt":"2026-10-19T11:18:15.537Z","updatedAt":"2026-10-19T14:05:47.816Z"} -->
 
-- [ ] [1] Review mailjail's architecture for deep modules and over-engineering, and
+- [x] [1] Review mailjail's architecture for deep modules and over-engineering, and
   draft the fixes
-      <!-- hai:{"id":"simple-debf051e-7bb3-4704-8414-79b444def535","labels":["steward"],"createdAt":"2026-10-19T08:08:28.055Z","updatedAt":"2026-10-19T11:12:49.423Z"} -->
+      <!-- hai:{"id":"simple-debf051e-7bb3-4704-8414-79b444def535","labels":["steward"],"createdAt":"2026-10-19T08:08:28.055Z","updatedAt":"2026-10-19T14:05:48.213Z"} -->
 
-- [ ] [2] Accept hai-tasks' [~] In Progress marker in the tracker check
-      <!-- hai:{"id":"simple-10ef580c-0284-475a-97c0-1bfa866a477f","labels":["steward"],"createdAt":"2026-10-19T11:07:39.393Z","updatedAt":"2026-10-19T11:09:07.669Z"} -->
+- [x] [2] Accept hai-tasks' [~] In Progress marker in the tracker check
+      <!-- hai:{"id":"simple-10ef580c-0284-475a-97c0-1bfa866a477f","labels":["steward"],"createdAt":"2026-10-19T11:07:39.393Z","updatedAt":"2026-10-19T14:05:48.602Z"} -->
 
 - [ ] [*] Support OAuth2 token extraction for Gmail. Thunderbird stores Gmail
       credentials as OAuth2 refresh tokens (not IMAP passwords) under
