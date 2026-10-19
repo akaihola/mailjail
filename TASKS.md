@@ -14,10 +14,10 @@ Rules for TASKS.md usage are at the bottom of the file.
 
 ## Scheduled
 
-- [3] Make the documented configuration loadable
-  <!-- hai:{"id":"simple-ef737507-3adf-4b1e-aa6e-2ad0f53feedd","labels":["steward"],"createdAt":"2026-10-19T11:18:15.537Z","updatedAt":"2026-10-19T12:26:16.053Z"} -->
-
 ## In Progress
+
+- [~] [3] Make the documented configuration loadable
+      <!-- hai:{"id":"simple-ef737507-3adf-4b1e-aa6e-2ad0f53feedd","labels":["steward"],"createdAt":"2026-10-19T11:18:15.537Z","updatedAt":"2026-10-19T12:26:32.157Z"} -->
 
 ## Completed / Accepted
 
