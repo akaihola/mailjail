@@ -10,13 +10,13 @@ Rules for TASKS.md usage are at the bottom of the file.
 
 ## In Progress
 
-- [~] [8] Put body selection and truncation in the fetch conversion contract
-      <!-- hai:{"id":"simple-00532c7f-6aad-40b9-b102-1609674839f6","labels":["steward"],"createdAt":"2026-10-19T14:11:42.621Z","updatedAt":"2026-10-19T15:55:09.021Z"} -->
-
 - [~] [7] Make a query plan own folder selection and sort support
       <!-- hai:{"id":"simple-4924e198-f45b-4d3c-a9b7-5cc4217f2ce2","labels":["steward"],"createdAt":"2026-10-19T14:11:42.189Z","updatedAt":"2026-10-19T15:53:30.559Z"} -->
 
 ## Completed / Accepted
+
+- [ ] [8] Put body selection and truncation in the fetch conversion contract
+      <!-- hai:{"id":"simple-00532c7f-6aad-40b9-b102-1609674839f6","labels":["steward"],"createdAt":"2026-10-19T14:11:42.621Z","updatedAt":"2026-10-19T15:58:09.781Z"} -->
 
 - [ ] [6] Make pool lifecycle rules true at one boundary
       <!-- hai:{"id":"simple-77b4dbbd-cf41-486b-aea6-c87891b1ab72","labels":["steward"],"createdAt":"2026-10-19T14:11:41.558Z","updatedAt":"2026-10-19T15:51:56.440Z"} -->
