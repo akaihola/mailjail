@@ -6,6 +6,15 @@ Rules for TASKS.md usage are at the bottom of the file.
 
 ## Ordered backlog
 
+- [6] Make pool lifecycle rules true at one boundary
+  <!-- hai:{"id":"simple-77b4dbbd-cf41-486b-aea6-c87891b1ab72","labels":["steward"],"createdAt":"2026-10-19T14:11:41.558Z","updatedAt":"2026-10-19T14:11:41.558Z"} -->
+
+- [7] Make a query plan own folder selection and sort support
+  <!-- hai:{"id":"simple-4924e198-f45b-4d3c-a9b7-5cc4217f2ce2","labels":["steward"],"createdAt":"2026-10-19T14:11:42.189Z","updatedAt":"2026-10-19T14:11:42.189Z"} -->
+
+- [8] Put body selection and truncation in the fetch conversion contract
+  <!-- hai:{"id":"simple-00532c7f-6aad-40b9-b102-1609674839f6","labels":["steward"],"createdAt":"2026-10-19T14:11:42.621Z","updatedAt":"2026-10-19T14:11:42.621Z"} -->
+
 ## Scheduled
 
 ## In Progress
@@ -437,7 +446,7 @@ Acceptance tests:
 
 [1]: docs/tasks/1-review-mailjail-s-architecture-for-deep-modules-and-over-engineering-a.md
 
-<!-- hai:reserved-numbers:1,2,3,4,5 -->
+<!-- hai:reserved-numbers:1,2,3,4,5,6,7,8 -->
 
 [2]: docs/tasks/2-accept-hai-tasks-in-progress-marker-in-the-tracker-check.md
 
@@ -446,6 +455,12 @@ Acceptance tests:
 [4]: docs/tasks/4-give-each-invocation-its-own-error-and-connection-boundary.md
 
 [5]: docs/tasks/5-hide-selected-folder-fetch-mechanics-behind-one-tested-operation.md
+
+[6]: docs/tasks/6-make-pool-lifecycle-rules-true-at-one-boundary.md
+
+[7]: docs/tasks/7-make-a-query-plan-own-folder-selection-and-sort-support.md
+
+[8]: docs/tasks/8-put-body-selection-and-truncation-in-the-fetch-conversion-contract.md
 
 ## Rules
 
