@@ -10,14 +10,14 @@ Rules for TASKS.md usage are at the bottom of the file.
 
 ## In Progress
 
-- [~] [2] Accept hai-tasks' [~] In Progress marker in the tracker check
-      <!-- hai:{"id":"simple-10ef580c-0284-475a-97c0-1bfa866a477f","labels":["steward"],"createdAt":"2026-10-19T11:07:39.393Z","updatedAt":"2026-10-19T11:08:12.479Z"} -->
-
 - [1] Review mailjail's architecture for deep modules and over-engineering, and
   draft the fixes
   <!-- hai:{"id":"simple-debf051e-7bb3-4704-8414-79b444def535","labels":["steward"],"createdAt":"2026-10-19T08:08:28.055Z","updatedAt":"2026-10-19T08:32:44.593Z"} -->
 
 ## Completed / Accepted
+
+- [ ] [2] Accept hai-tasks' [~] In Progress marker in the tracker check
+      <!-- hai:{"id":"simple-10ef580c-0284-475a-97c0-1bfa866a477f","labels":["steward"],"createdAt":"2026-10-19T11:07:39.393Z","updatedAt":"2026-10-19T11:09:07.669Z"} -->
 
 - [ ] [*] Support OAuth2 token extraction for Gmail. Thunderbird stores Gmail
       credentials as OAuth2 refresh tokens (not IMAP passwords) under
