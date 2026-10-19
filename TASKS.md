@@ -6,9 +6,6 @@ Rules for TASKS.md usage are at the bottom of the file.
 
 ## Ordered backlog
 
-- [3] Make the documented configuration loadable
-  <!-- hai:{"id":"simple-ef737507-3adf-4b1e-aa6e-2ad0f53feedd","labels":["steward"],"createdAt":"2026-10-19T11:18:15.537Z","updatedAt":"2026-10-19T11:18:15.537Z"} -->
-
 - [4] Give each invocation its own error and connection boundary
   <!-- hai:{"id":"simple-63ce8edd-777b-4c86-a23b-7b8e9e0a3671","labels":["steward"],"createdAt":"2026-10-19T11:18:16.133Z","updatedAt":"2026-10-19T11:18:16.133Z"} -->
 
@@ -16,6 +13,9 @@ Rules for TASKS.md usage are at the bottom of the file.
   <!-- hai:{"id":"simple-c61887b2-cbca-44a7-979c-01523005c888","labels":["steward"],"createdAt":"2026-10-19T11:18:16.725Z","updatedAt":"2026-10-19T11:18:16.725Z"} -->
 
 ## Scheduled
+
+- [3] Make the documented configuration loadable
+  <!-- hai:{"id":"simple-ef737507-3adf-4b1e-aa6e-2ad0f53feedd","labels":["steward"],"createdAt":"2026-10-19T11:18:15.537Z","updatedAt":"2026-10-19T12:26:16.053Z"} -->
 
 ## In Progress
 
