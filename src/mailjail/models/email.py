@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from ..imap.connection import IMAPPool
 from ..imap.fetch import (
     email_id_to_folder_uid,
+    fetch_messages,
     folder_uid_to_email_id,
     imap_message_to_jmap_email,
 )
@@ -116,7 +117,7 @@ def handle_email_query(
 
 def handle_email_changes(
     args: dict[str, Any],
-    pool: IMAPPool,  # noqa: ARG001 — handler is intentionally state-less
+    pool: IMAPPool,
 ) -> tuple[str, dict[str, Any]]:
     """Email/changes — always reports the cache as invalid.
 
@@ -167,13 +168,10 @@ def handle_email_get(
     1. Extract ids list (already resolved from result refs by executor).
     2. Extract properties list (None = all).
     3. Group ids by folder (parse folder:uid).
-    4. For each folder group: acquire connection, mb.folder.set(folder),
-       fetch messages with mark_seen=False.
+    4. Fetch each folder group through the non-marking IMAP adapter.
     5. Map each MailMessage to JMAP Email via imap_message_to_jmap_email.
     6. Return ("Email/get", {"accountId":..., "list":[...], "notFound":[...], "state":"0"})
     """
-    from imap_tools import AND
-
     account_id = args["accountId"]
     ids: list[str] = args.get("ids", [])
     properties: list[str] | None = args.get("properties")
@@ -184,41 +182,26 @@ def handle_email_get(
 
     # Group ids by folder
     folder_uids: dict[str, list[str]] = {}
-    not_found: list[str] = []
 
     for email_id in ids:
         try:
             folder, uid = email_id_to_folder_uid(email_id)
         except ValueError:
-            not_found.append(email_id)
             continue
         folder_uids.setdefault(folder, []).append(uid)
 
     email_list: list[dict[str, Any]] = []
 
     for folder, uids in folder_uids.items():
-        with pool.connection() as mb:
-            mb.folder.set(folder)
-            criteria = AND(uid=uids)
-            # CRITICAL: always mark_seen=False to avoid marking messages as read
-            for msg in mb.fetch(
-                criteria, mark_seen=False, headers_only=headers_only, bulk=True
-            ):
-                try:
-                    jmap_email = imap_message_to_jmap_email(msg, folder, properties)
-                    email_list.append(jmap_email)
-                except ValueError:
-                    # msg.uid was None or other conversion error
-                    pass
+        for msg in fetch_messages(pool, folder, uids, headers_only=headers_only):
+            try:
+                email_list.append(imap_message_to_jmap_email(msg, folder, properties))
+            except ValueError:
+                # A message without a usable UID cannot satisfy a requested ID.
+                pass
 
-        # Check for IDs we requested but didn't receive
-        fetched_uids = {
-            e["id"].split(":")[1] for e in email_list if ":" in e.get("id", "")
-        }
-        for uid in uids:
-            eid = folder_uid_to_email_id(folder, uid)
-            if uid not in fetched_uids:
-                not_found.append(eid)
+    found_ids = {email["id"] for email in email_list}
+    not_found = [email_id for email_id in ids if email_id not in found_ids]
 
     return (
         "Email/get",

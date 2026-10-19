@@ -3,6 +3,7 @@
 from unittest.mock import MagicMock
 
 import pytest
+from imap_tools import MailMessage
 
 from mailjail.config import AccountSettings
 from mailjail.registry import AccountContext, AccountRegistry
@@ -53,3 +54,22 @@ def sample_jmap_request():
         "using": ["urn:ietf:params:jmap:core", "urn:ietf:params:jmap:mail"],
         "methodCalls": [["Email/query", {"accountId": "work", "filter": {}}, "c0"]],
     }
+
+
+@pytest.fixture
+def sample_message() -> MailMessage:
+    """An offline MIME message with a real attachment and an IMAP UID."""
+    from email.message import EmailMessage
+
+    from imap_tools import MailMessage
+
+    mime = EmailMessage()
+    mime["From"] = "Sender <sender@example.com>"
+    mime["To"] = "reader@example.com"
+    mime["Subject"] = "Offline message"
+    mime.set_content("Message body")
+    mime.add_attachment(b"attachment bytes", maintype="application", subtype="pdf",
+                        filename="report.pdf")
+    message = MailMessage.from_bytes(mime.as_bytes())
+    message.uid = "42"
+    return message

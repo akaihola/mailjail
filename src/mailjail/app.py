@@ -2,14 +2,14 @@
 
 import json
 import logging
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
-from imap_tools import AND
 from pydantic import ValidationError
 
 from .config import Settings
 from .executor import Executor
-from .imap.fetch import parse_attachment_blob_id
+from .imap.fetch import fetch_messages, parse_attachment_blob_id
 from .models.core import JMAPErrorType, JMAPRequest, make_error_invocation
 from .registry import AccountRegistry
 from .session import session_resource
@@ -47,17 +47,15 @@ def _download_attachment(
         )
     payload: bytes | None = None
     content_type = "application/octet-stream"
-    with ctx.pool.connection() as mb:
-        mb.folder.set(folder)
-        for msg in mb.fetch(AND(uid=[uid]), mark_seen=False, bulk=True):
-            attachments = list(msg.attachments or [])
-            if 0 <= idx < len(attachments):
-                att = attachments[idx]
-                payload = getattr(att, "payload", None) or b""
-                content_type = (
-                    getattr(att, "content_type", None) or "application/octet-stream"
-                )
-            break
+    for msg in fetch_messages(ctx.pool, folder, [uid]):
+        attachments = list(msg.attachments or [])
+        if 0 <= idx < len(attachments):
+            att = attachments[idx]
+            payload = getattr(att, "payload", None) or b""
+            content_type = (
+                getattr(att, "content_type", None) or "application/octet-stream"
+            )
+        break
     if payload is None:
         return _json_response(
             start_response,

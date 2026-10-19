@@ -3,9 +3,27 @@
 import re
 from typing import Any
 
-from imap_tools import MailMessage
+from imap_tools import AND, MailMessage
 
+from .connection import IMAPPool
 from .flags import imap_flags_to_jmap_keywords
+
+
+def fetch_messages(
+    pool: IMAPPool,
+    folder: str,
+    uids: list[str],
+    *,
+    headers_only: bool = False,
+) -> list[MailMessage]:
+    """Fetch without marking seen; exhaust the iterator before releasing the connection."""
+    with pool.connection() as mb:
+        mb.folder.set(folder)
+        return list(
+            mb.fetch(
+                AND(uid=uids), mark_seen=False, headers_only=headers_only, bulk=True
+            )
+        )
 
 
 def email_id_to_folder_uid(email_id: str) -> tuple[str, str]:

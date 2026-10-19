@@ -132,6 +132,10 @@ exposes:
 | GET    | `/jmap/download/{accountId}/{blobId}/{name}`    | attachment download              |
 | GET    | `/healthz`                                      | per-account IMAP health          |
 
+Email/get reports missing messages by complete `FOLDER:UID` ID, even when
+folders share a UID. Email/get and attachment downloads never mark messages as read;
+a missing message or attachment part returns `blobNotFound` on download.
+
 ## Smoke test
 
 Run against the deployed service with plain `curl` (what the agent user

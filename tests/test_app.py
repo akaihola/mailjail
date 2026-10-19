@@ -7,6 +7,9 @@ import json
 from typing import Any
 from unittest.mock import MagicMock
 
+import pytest
+from imap_tools import MailMessage
+
 from mailjail.app import make_app
 from mailjail.config import AccountSettings, Settings
 from mailjail.executor import Executor
@@ -127,8 +130,41 @@ def test_post_jmap_routes_through_executor() -> None:
         )
 
     assert status == "200 OK"
-    method, args, call_id = resp["methodResponses"][0]
+    method, _args, call_id = resp["methodResponses"][0]
     assert method == "Mailbox/get"
     assert call_id == "c0"
     mock_handler.assert_called_once()
     assert mock_handler.call_args.args[1] is pools["work"]
+
+
+@pytest.mark.parametrize("blob_id, present, status", [
+    ("INBOX:42:0", True, "200 OK"),
+    ("INBOX:42:1", True, "404 Not Found"),
+    ("INBOX:42:-1", True, "404 Not Found"),
+    ("INBOX:42:0", False, "404 Not Found"),
+])
+def test_download_through_fetch_adapter(
+    sample_message: MailMessage, blob_id: str, present: bool, status: str,
+) -> None:
+    settings = _settings("work", ["work"])
+    registry, pools = _registry_with_pools(settings, healthy={"work": True})
+    mailbox = pools["work"].connection.return_value.__enter__.return_value
+    mailbox.fetch.return_value = iter([sample_message] if present else [])
+    app = make_app(Executor(registry=registry), registry, settings)
+    response = MagicMock()
+
+    payload = b"".join(app({
+        "REQUEST_METHOD": "GET",
+        "PATH_INFO": f"/jmap/download/work/{blob_id}/report.pdf",
+    }, response))
+
+    assert response.call_args.args[0] == status
+    if status == "200 OK":
+        assert payload == b"attachment bytes"
+        headers = dict(response.call_args.args[1])
+        assert headers["Content-Type"] == "application/pdf"
+        assert headers["Content-Length"] == str(len(payload))
+    else:
+        assert json.loads(payload)["type"] == "blobNotFound"
+    mailbox.folder.set.assert_called_once_with("INBOX")
+    assert mailbox.fetch.call_args.kwargs["mark_seen"] is False

@@ -563,6 +563,12 @@ Connection pooling within a single account: a small pool (2-4 connections)
 using a `queue.Queue`. Each request borrows a connection, uses it, returns it.
 Connections are validated with NOOP before reuse, reconnected if stale.
 
+`imap.fetch.fetch_messages` owns borrowing, folder selection, UID criteria and
+`mark_seen=False` for Email/get and attachment downloads. It materializes the
+FETCH iterator before releasing the connection, so callers never consume a
+server iterator after another request can select a different folder. Email/get
+compares complete requested IDs against converted IDs for `notFound`.
+
 ```python
 import queue
 from contextlib import contextmanager
