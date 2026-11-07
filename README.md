@@ -1,5 +1,7 @@
 # mailjail
 
+> This is a prototype developed using AI coding agents and not intended for production use.
+
 A capability-restricted JMAP-shaped HTTP proxy in front of IMAP. Holds the
 mail credentials in a locked-down service so an AI agent (Claude Code,
 pykoclaw, etc.) can read, search, flag, label and draft email — but cannot
